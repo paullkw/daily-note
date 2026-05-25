@@ -1,5 +1,25 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Login Feature
+
+This project includes a cookie-based authentication flow with SQLite-backed users:
+
+- `/login`: Sign-in form powered by a Server Action.
+- `/signup`: Registration form that stores users in SQLite.
+- `/dashboard`: Protected page.
+- `proxy.ts`: Redirects unauthenticated users from protected routes.
+- `app/lib/db.ts`: SQLite setup and user queries.
+
+Passwords are hashed with bcrypt before being stored.
+
+The SQLite database file is created automatically at `data/app.db`.
+
+Set your session secret with environment variables:
+
+```bash
+SESSION_SECRET=replace-with-a-long-random-secret
+```
+
 ## Getting Started
 
 First, run the development server:
