@@ -73,6 +73,63 @@ export default async function DashboardPage() {
                 </svg>
                 <span>Game</span>
               </li>
+
+              <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                <span className="text-zinc-500">▸</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-zinc-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="5" y="4" width="14" height="16" rx="2" />
+                  <path d="M8 8h8" />
+                  <path d="M8 12h8" />
+                </svg>
+                <span>Comic</span>
+              </li>
+
+              <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                <span className="text-zinc-500">▸</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-zinc-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 5h14v14H5z" />
+                  <path d="M5 10h14" />
+                  <path d="M12 10v9" />
+                </svg>
+                <span>Drama</span>
+              </li>
+
+              <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                <span className="text-zinc-500">▸</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-zinc-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="M7 5v14" />
+                  <path d="M17 5v14" />
+                </svg>
+                <span>Movie</span>
+              </li>
             </ul>
           </nav>
         </aside>
