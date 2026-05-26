@@ -1,96 +1,265 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 
 import { logout } from "@/app/actions/auth";
-
-const mediaItems = [
-  {
-    label: "Music",
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3v12" />
-        <circle cx="12" cy="18" r="3" />
-        <path d="M12 8c1.5-1.2 3.3-1.8 5.4-1.8" />
-      </svg>
-    ),
-  },
-  {
-    label: "Game",
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="6" width="18" height="12" rx="2" />
-        <circle cx="9" cy="12" r="1.2" />
-        <circle cx="15" cy="12" r="1.2" />
-      </svg>
-    ),
-  },
-  {
-    label: "Comic",
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="5" y="4" width="14" height="16" rx="2" />
-        <path d="M8 8h8" />
-        <path d="M8 12h8" />
-      </svg>
-    ),
-  },
-  {
-    label: "Movie",
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="M7 5v14" />
-        <path d="M17 5v14" />
-      </svg>
-    ),
-  },
-  {
-    label: "Book",
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 0-2 2" />
-        <path d="M6 4v16" />
-        <path d="M10 8h6" />
-      </svg>
-    ),
-  },
-  {
-    label: "Anime",
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 6h16v12H4z" />
-        <circle cx="9" cy="12" r="1" />
-        <circle cx="15" cy="12" r="1" />
-        <path d="M8 16c1.5-1 2.8-1.5 4-1.5s2.5.5 4 1.5" />
-      </svg>
-    ),
-  },
-];
-
-const dramaChildren = ["Japan", "Korea"];
+import { saveDashboardExplorerState } from "./actions";
+import type { ExplorerIconKey, ExplorerNode, ExplorerState } from "./explorer-state";
 
 type ContextScope = "root" | "item";
+
+type TreeTarget = { id: string };
 
 type MenuState = {
   open: boolean;
   x: number;
   y: number;
   scope: ContextScope;
+  targetId: string | null;
 };
 
-function FolderIcon() {
+function FolderIcon({ open }: { open?: boolean }) {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7h7l2 2h9v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <path d="M3 7V6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v1" />
+      {open ? (
+        <>
+          <path d="M3 8h18l-2 10H5z" />
+          <path d="M3 8V6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v0" />
+        </>
+      ) : (
+        <>
+          <path d="M3 7h7l2 2h9v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <path d="M3 7V6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v1" />
+        </>
+      )}
     </svg>
   );
 }
 
-export default function DashboardExplorer() {
-  const [menu, setMenu] = useState<MenuState>({ open: false, x: 0, y: 0, scope: "root" });
+function ItemIcon({ iconKey }: { iconKey?: ExplorerIconKey }) {
+  if (iconKey === "music") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v12" />
+        <circle cx="12" cy="18" r="3" />
+        <path d="M12 8c1.5-1.2 3.3-1.8 5.4-1.8" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "game") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <circle cx="9" cy="12" r="1.2" />
+        <circle cx="15" cy="12" r="1.2" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "comic") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="4" width="14" height="16" rx="2" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "movie") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M7 5v14" />
+        <path d="M17 5v14" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "book") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 0-2 2" />
+        <path d="M6 4v16" />
+        <path d="M10 8h6" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "anime") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 6h16v12H4z" />
+        <circle cx="9" cy="12" r="1" />
+        <circle cx="15" cy="12" r="1" />
+        <path d="M8 16c1.5-1 2.8-1.5 4-1.5s2.5.5 4 1.5" />
+      </svg>
+    );
+  }
+
+  return <FolderIcon />;
+}
+
+function findNodeById(nodes: ExplorerNode[], nodeId: string): ExplorerNode | null {
+  for (const node of nodes) {
+    if (node.id === nodeId) {
+      return node;
+    }
+
+    const childNodes = node.children ?? [];
+    const found = findNodeById(childNodes, nodeId);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+function renameNode(nodes: ExplorerNode[], nodeId: string, nextName: string): ExplorerNode[] {
+  return nodes.map((node) => {
+    if (node.id === nodeId) {
+      return { ...node, name: nextName };
+    }
+
+    if (!node.children || node.children.length === 0) {
+      return node;
+    }
+
+    return { ...node, children: renameNode(node.children, nodeId, nextName) };
+  });
+}
+
+function addChildFolder(nodes: ExplorerNode[], parentId: string | null, child: ExplorerNode): ExplorerNode[] {
+  if (!parentId) {
+    return [...nodes, child];
+  }
+
+  return nodes.map((node) => {
+    if (node.id === parentId) {
+      const currentChildren = node.children ?? [];
+      return { ...node, kind: "folder", children: [...currentChildren, child] };
+    }
+
+    if (!node.children || node.children.length === 0) {
+      return node;
+    }
+
+    return { ...node, children: addChildFolder(node.children, parentId, child) };
+  });
+}
+
+function addNodeToFolder(nodes: ExplorerNode[], folderId: string, child: ExplorerNode): ExplorerNode[] {
+  return nodes.map((node) => {
+    if (node.id === folderId) {
+      const currentChildren = node.children ?? [];
+      return { ...node, kind: "folder", children: [...currentChildren, child] };
+    }
+
+    if (!node.children || node.children.length === 0) {
+      return node;
+    }
+
+    return { ...node, children: addNodeToFolder(node.children, folderId, child) };
+  });
+}
+
+function removeNode(nodes: ExplorerNode[], nodeId: string): ExplorerNode[] {
+  const filtered = nodes.filter((node) => node.id !== nodeId);
+  return filtered.map((node) => {
+    if (!node.children || node.children.length === 0) {
+      return node;
+    }
+
+    return { ...node, children: removeNode(node.children, nodeId) };
+  });
+}
+
+function detachNode(nodes: ExplorerNode[], nodeId: string): { nodes: ExplorerNode[]; detached: ExplorerNode | null } {
+  let detached: ExplorerNode | null = null;
+
+  const nextNodes: ExplorerNode[] = [];
+  for (const node of nodes) {
+    if (node.id === nodeId) {
+      detached = node;
+      continue;
+    }
+
+    if (!node.children || node.children.length === 0) {
+      nextNodes.push(node);
+      continue;
+    }
+
+    const result = detachNode(node.children, nodeId);
+    if (result.detached) {
+      detached = result.detached;
+    }
+
+    nextNodes.push({ ...node, children: result.nodes });
+  }
+
+  return { nodes: nextNodes, detached };
+}
+
+function insertAfterNode(nodes: ExplorerNode[], targetId: string, nodeToInsert: ExplorerNode): { nodes: ExplorerNode[]; inserted: boolean } {
+  const directIndex = nodes.findIndex((node) => node.id === targetId);
+  if (directIndex >= 0) {
+    const nextNodes = [...nodes];
+    nextNodes.splice(directIndex + 1, 0, nodeToInsert);
+    return { nodes: nextNodes, inserted: true };
+  }
+
+  let inserted = false;
+  const nextNodes = nodes.map((node) => {
+    if (!node.children || node.children.length === 0) {
+      return node;
+    }
+
+    const result = insertAfterNode(node.children, targetId, nodeToInsert);
+    if (result.inserted) {
+      inserted = true;
+      return { ...node, children: result.nodes };
+    }
+
+    return node;
+  });
+
+  return { nodes: nextNodes, inserted };
+}
+
+function containsNode(nodes: ExplorerNode[], nodeId: string): boolean {
+  for (const node of nodes) {
+    if (node.id === nodeId) {
+      return true;
+    }
+
+    if (node.children && node.children.length > 0 && containsNode(node.children, nodeId)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function createNodeId(): string {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `node-${Date.now()}-${random}`;
+}
+
+type DashboardExplorerProps = {
+  initialState: ExplorerState;
+};
+
+export default function DashboardExplorer({ initialState }: DashboardExplorerProps) {
+  const [treeNodes, setTreeNodes] = useState<ExplorerNode[]>(() => initialState.nodes);
+  const [menu, setMenu] = useState<MenuState>({ open: false, x: 0, y: 0, scope: "root", targetId: null });
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     const closeMenu = () => {
@@ -115,7 +284,7 @@ export default function DashboardExplorer() {
     };
   }, []);
 
-  const openMenuAt = (event: MouseEvent, scope: ContextScope) => {
+  const openMenuAt = (event: MouseEvent, scope: ContextScope, target: TreeTarget | null = null) => {
     event.preventDefault();
     event.stopPropagation();
     setMenu({
@@ -123,8 +292,170 @@ export default function DashboardExplorer() {
       x: event.clientX,
       y: event.clientY,
       scope,
+      targetId: target ? target.id : null,
     });
     setCreateOpen(false);
+  };
+
+  const persistTree = async (nextNodes: ExplorerNode[]) => {
+    setTreeNodes(nextNodes);
+    await saveDashboardExplorerState({ nodes: nextNodes });
+  };
+
+  const commitRename = async () => {
+    const nextValue = editingValue.trim();
+
+    if (!editingTargetId || !nextValue) {
+      setEditingTargetId(null);
+      setEditingValue("");
+      return;
+    }
+
+    const nextNodes = renameNode(treeNodes, editingTargetId, nextValue);
+    void persistTree(nextNodes);
+
+    setEditingTargetId(null);
+    setEditingValue("");
+  };
+
+  const handleRenameKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitRename();
+    }
+
+    if (event.key === "Escape") {
+      setEditingTargetId(null);
+      setEditingValue("");
+    }
+  };
+
+  const startRename = () => {
+    if (!menu.targetId) {
+      return;
+    }
+
+    const target = findNodeById(treeNodes, menu.targetId);
+
+    if (!target) {
+      return;
+    }
+
+    setEditingTargetId(target.id);
+    setEditingValue(target.name);
+    setMenu((current) => ({ ...current, open: false }));
+    setCreateOpen(false);
+  };
+
+  const createFolder = () => {
+    const targetId = menu.targetId;
+    const targetNode = targetId ? findNodeById(treeNodes, targetId) : null;
+    const parentId = !targetNode || targetNode.kind === "folder" ? targetId : null;
+    const nextNodes = addChildFolder(treeNodes, parentId, {
+      id: createNodeId(),
+      name: "New Folder",
+      kind: "folder",
+      children: [],
+    });
+
+    void persistTree(nextNodes);
+    setMenu((current) => ({ ...current, open: false }));
+    setCreateOpen(false);
+  };
+
+  const removeSelected = () => {
+    if (!menu.targetId) {
+      return;
+    }
+
+    const nextNodes = removeNode(treeNodes, menu.targetId);
+    void persistTree(nextNodes);
+    setMenu((current) => ({ ...current, open: false, targetId: null }));
+    setCreateOpen(false);
+    if (editingTargetId === menu.targetId) {
+      setEditingTargetId(null);
+      setEditingValue("");
+    }
+  };
+
+  const handleDragStart = (event: DragEvent<HTMLDivElement>, nodeId: string) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", nodeId);
+    setDraggingId(nodeId);
+  };
+
+  const handleDragOverNode = (event: DragEvent<HTMLDivElement>, nodeId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDropTargetId(nodeId);
+  };
+
+  const handleDropNode = (event: DragEvent<HTMLDivElement>, targetId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const draggedId = event.dataTransfer.getData("text/plain") || draggingId;
+
+    setDropTargetId(null);
+    setDraggingId(null);
+
+    if (!draggedId || draggedId === targetId) {
+      return;
+    }
+
+    const draggedNode = findNodeById(treeNodes, draggedId);
+    const targetNode = findNodeById(treeNodes, targetId);
+    if (!draggedNode) {
+      return;
+    }
+
+    if (!targetNode) {
+      return;
+    }
+
+    if (containsNode(draggedNode.children ?? [], targetId)) {
+      return;
+    }
+
+    const detachedResult = detachNode(treeNodes, draggedId);
+    if (!detachedResult.detached) {
+      return;
+    }
+
+    const nextNodes =
+      targetNode.kind === "folder"
+        ? addNodeToFolder(detachedResult.nodes, targetId, detachedResult.detached)
+        : (() => {
+            const insertResult = insertAfterNode(detachedResult.nodes, targetId, detachedResult.detached);
+            return insertResult.inserted ? insertResult.nodes : [...detachedResult.nodes, detachedResult.detached];
+          })();
+
+    void persistTree(nextNodes);
+  };
+
+  const handleDropRoot = (event: DragEvent<HTMLUListElement>) => {
+    event.preventDefault();
+    const draggedId = event.dataTransfer.getData("text/plain") || draggingId;
+
+    setDropTargetId(null);
+    setDraggingId(null);
+
+    if (!draggedId) {
+      return;
+    }
+
+    const detachedResult = detachNode(treeNodes, draggedId);
+    if (!detachedResult.detached) {
+      return;
+    }
+
+    const nextNodes = [...detachedResult.nodes, detachedResult.detached];
+    void persistTree(nextNodes);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDropTargetId(null);
   };
 
   const treeRowClass = "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100";
@@ -132,7 +463,7 @@ export default function DashboardExplorer() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl px-4 py-6 sm:px-6">
       <div className="grid w-full grid-cols-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-[260px_1fr]">
-        <aside className="border-b border-zinc-200 bg-zinc-50 p-4 md:border-b-0 md:border-r" onContextMenu={(event) => openMenuAt(event, "root")}>
+        <aside className="border-b border-zinc-200 bg-zinc-50 p-4 md:border-b-0 md:border-r" onContextMenu={(event) => openMenuAt(event, "root", null)}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h1 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Explorer</h1>
             <form action={logout}>
@@ -143,43 +474,55 @@ export default function DashboardExplorer() {
           </div>
 
           <nav aria-label="Dashboard tree view">
-            <ul className="space-y-1 text-sm text-zinc-700">
-              {mediaItems.slice(0, 3).map((item) => (
-                <li key={item.label} className={treeRowClass} onContextMenu={(event) => openMenuAt(event, "item")}>
-                  <span className="text-zinc-500">▸</span>
-                  {item.icon}
-                  <span>{item.label}</span>
-                </li>
-              ))}
+            <ul
+              className="space-y-1 text-sm text-zinc-700"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={handleDropRoot}
+            >
+              {treeNodes.map((node) => {
+                const renderNode = (currentNode: ExplorerNode, depth: number) => {
+                  const childNodes = currentNode.children ?? [];
+                  const hasChildren = childNodes.length > 0;
+                  const isFolder = currentNode.kind === "folder";
+                  const isEditing = editingTargetId === currentNode.id;
+                  const isDragSource = draggingId === currentNode.id;
+                  const isDropTarget = dropTargetId === currentNode.id;
 
-              <li>
-                <div className={treeRowClass} onContextMenu={(event) => openMenuAt(event, "item")}>
-                  <span className="text-zinc-500">▾</span>
-                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 5h14v14H5z" />
-                    <path d="M5 10h14" />
-                    <path d="M12 10v9" />
-                  </svg>
-                  <span>Drama</span>
-                </div>
+                  return (
+                    <li key={currentNode.id}>
+                      <div
+                        className={`${treeRowClass} ${isDropTarget ? "bg-zinc-200" : ""} ${isDragSource ? "opacity-50" : ""}`}
+                        style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
+                        onContextMenu={(event) => openMenuAt(event, "item", { id: currentNode.id })}
+                        draggable
+                        onDragStart={(event) => handleDragStart(event, currentNode.id)}
+                        onDragOver={(event) => handleDragOverNode(event, currentNode.id)}
+                        onDrop={(event) => handleDropNode(event, currentNode.id)}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <span className="text-zinc-500">{isFolder ? "▾" : "▸"}</span>
+                        {isFolder ? <FolderIcon open={hasChildren} /> : <ItemIcon iconKey={currentNode.iconKey} />}
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            value={editingValue}
+                            onChange={(event) => setEditingValue(event.target.value)}
+                            onBlur={() => void commitRename()}
+                            onKeyDown={handleRenameKeyDown}
+                            className="w-full rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                          />
+                        ) : (
+                          <span>{currentNode.name}</span>
+                        )}
+                      </div>
 
-                <ul className="mt-0.5 space-y-1 pl-7 text-sm text-zinc-700">
-                  {dramaChildren.map((child) => (
-                    <li key={child} className={treeRowClass} onContextMenu={(event) => openMenuAt(event, "item")}>
-                      <FolderIcon />
-                      <span>{child}</span>
+                      {isFolder && hasChildren ? <ul className="space-y-1">{childNodes.map((child) => renderNode(child, depth + 1))}</ul> : null}
                     </li>
-                  ))}
-                </ul>
-              </li>
+                  );
+                };
 
-              {mediaItems.slice(3).map((item) => (
-                <li key={item.label} className={treeRowClass} onContextMenu={(event) => openMenuAt(event, "item")}>
-                  <span className="text-zinc-500">▸</span>
-                  {item.icon}
-                  <span>{item.label}</span>
-                </li>
-              ))}
+                return renderNode(node, 0);
+              })}
             </ul>
           </nav>
         </aside>
@@ -189,7 +532,13 @@ export default function DashboardExplorer() {
 
       {menu.open ? (
         <div className="fixed z-50 min-w-44 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y }}>
-          <button type="button" className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onMouseEnter={() => setCreateOpen(false)}>
+          <button
+            type="button"
+            className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+            onMouseEnter={() => setCreateOpen(false)}
+            onClick={startRename}
+            disabled={!menu.targetId}
+          >
             Rename
           </button>
 
@@ -201,13 +550,22 @@ export default function DashboardExplorer() {
 
             {createOpen ? (
               <div className="absolute left-full top-0 ml-1 min-w-40 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl">
-                <button type="button" className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100">
+                <button type="button" className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={createFolder}>
                   <FolderIcon />
                   <span className="ml-2">Folder</span>
                 </button>
               </div>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+            onClick={removeSelected}
+            disabled={!menu.targetId}
+          >
+            Remove
+          </button>
 
           <div className="mt-1 border-t border-zinc-100 pt-1 text-xs text-zinc-500">
             {menu.scope === "root" ? "Right-clicked Explorer" : "Right-clicked item"}

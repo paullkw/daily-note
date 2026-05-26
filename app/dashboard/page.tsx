@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { findUserById } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
+import { loadDashboardExplorerState } from "./actions";
 import DashboardExplorer from "./DashboardExplorer";
 
 export default async function DashboardPage() {
@@ -18,5 +19,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  return <DashboardExplorer />;
+  const initialState = await loadDashboardExplorerState();
+
+  return <DashboardExplorer initialState={initialState} />;
 }

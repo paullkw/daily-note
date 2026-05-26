@@ -25,6 +25,24 @@ function createDb(): SqliteDatabase {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dashboard_explorer_settings (
+      user_id INTEGER PRIMARY KEY,
+      media_labels_json TEXT NOT NULL,
+      drama_label TEXT NOT NULL,
+      drama_children_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dashboard_treeviews (
+      user_id INTEGER PRIMARY KEY,
+      tree_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   return db;
 }
 
@@ -46,6 +64,15 @@ export type User = {
   email: string;
   passwordHash: string;
   createdAt: string;
+};
+
+type DashboardTreeviewRow = {
+  user_id: number;
+  tree_json: string;
+};
+
+export type DashboardTreeviewState = {
+  nodes: unknown[];
 };
 
 function mapUser(row: UserRow): User {
@@ -88,4 +115,48 @@ export function createUser(email: string, passwordHash: string): User {
   }
 
   return user;
+}
+
+function parseTreeState(value: string): DashboardTreeviewState | null {
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const nodes = (parsed as { nodes?: unknown }).nodes;
+
+    if (!Array.isArray(nodes)) {
+      return null;
+    }
+
+    return { nodes };
+  } catch {
+    return null;
+  }
+}
+
+export function getDashboardTreeviewState(userId: number): DashboardTreeviewState | null {
+  const statement = db.prepare<[number], DashboardTreeviewRow>(
+    "SELECT user_id, tree_json FROM dashboard_treeviews WHERE user_id = ?"
+  );
+  const row = statement.get(userId);
+
+  if (!row) {
+    return null;
+  }
+
+  return parseTreeState(row.tree_json);
+}
+
+export function upsertDashboardTreeviewState(userId: number, state: DashboardTreeviewState): void {
+  const statement = db.prepare<[number, string]>(`
+    INSERT INTO dashboard_treeviews (user_id, tree_json, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      tree_json = excluded.tree_json,
+      updated_at = datetime('now')
+  `);
+
+  statement.run(userId, JSON.stringify(state));
 }
