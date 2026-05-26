@@ -130,6 +130,25 @@ export default async function DashboardPage() {
                 </svg>
                 <span>Movie</span>
               </li>
+
+              <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                <span className="text-zinc-500">▸</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-zinc-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 0-2 2" />
+                  <path d="M6 4v16" />
+                  <path d="M10 8h6" />
+                </svg>
+                <span>Book</span>
+              </li>
             </ul>
           </nav>
         </aside>
