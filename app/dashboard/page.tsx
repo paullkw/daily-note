@@ -149,6 +149,26 @@ export default async function DashboardPage() {
                 </svg>
                 <span>Book</span>
               </li>
+
+              <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                <span className="text-zinc-500">▸</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-zinc-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 6h16v12H4z" />
+                  <circle cx="9" cy="12" r="1" />
+                  <circle cx="15" cy="12" r="1" />
+                  <path d="M8 16c1.5-1 2.8-1.5 4-1.5s2.5.5 4 1.5" />
+                </svg>
+                <span>Anime</span>
+              </li>
             </ul>
           </nav>
         </aside>
