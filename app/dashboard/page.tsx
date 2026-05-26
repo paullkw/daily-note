@@ -93,23 +93,60 @@ export default async function DashboardPage() {
                 <span>Comic</span>
               </li>
 
-              <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
-                <span className="text-zinc-500">▸</span>
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4 text-zinc-600"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 5h14v14H5z" />
-                  <path d="M5 10h14" />
-                  <path d="M12 10v9" />
-                </svg>
-                <span>Drama</span>
+              <li>
+                <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                  <span className="text-zinc-500">▾</span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4 text-zinc-600"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 5h14v14H5z" />
+                    <path d="M5 10h14" />
+                    <path d="M12 10v9" />
+                  </svg>
+                  <span>Drama</span>
+                </div>
+
+                <ul className="mt-0.5 space-y-1 pl-7 text-sm text-zinc-700">
+                  <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 text-zinc-600"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 7h7l2 2h9v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <path d="M3 7V6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span>Japan</span>
+                  </li>
+                  <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 text-zinc-600"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 7h7l2 2h9v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <path d="M3 7V6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span>Korea</span>
+                  </li>
+                </ul>
               </li>
 
               <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100">
