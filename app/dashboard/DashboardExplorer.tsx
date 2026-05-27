@@ -248,12 +248,32 @@ function createNodeId(): string {
   return `node-${Date.now()}-${random}`;
 }
 
+function collectFolderIds(nodes: ExplorerNode[]): Set<string> {
+  const folderIds = new Set<string>();
+
+  const walk = (currentNodes: ExplorerNode[]) => {
+    for (const node of currentNodes) {
+      if (node.kind === "folder") {
+        folderIds.add(node.id);
+      }
+
+      if (node.children && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+
+  walk(nodes);
+  return folderIds;
+}
+
 type DashboardExplorerProps = {
   initialState: ExplorerState;
 };
 
 export default function DashboardExplorer({ initialState }: DashboardExplorerProps) {
   const [treeNodes, setTreeNodes] = useState<ExplorerNode[]>(() => initialState.nodes);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => collectFolderIds(initialState.nodes));
   const [menu, setMenu] = useState<MenuState>({ open: false, x: 0, y: 0, scope: "root", targetId: null });
   const [createOpen, setCreateOpen] = useState(false);
   const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
@@ -283,6 +303,28 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  useEffect(() => {
+    const validFolderIds = collectFolderIds(treeNodes);
+
+    setExpandedFolderIds((current) => {
+      const next = new Set<string>();
+
+      for (const folderId of current) {
+        if (validFolderIds.has(folderId)) {
+          next.add(folderId);
+        }
+      }
+
+      for (const folderId of validFolderIds) {
+        if (!current.has(folderId)) {
+          next.add(folderId);
+        }
+      }
+
+      return next;
+    });
+  }, [treeNodes]);
 
   const openMenuAt = (event: MouseEvent, scope: ContextScope, target: TreeTarget | null = null) => {
     event.preventDefault();
@@ -361,10 +403,32 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     });
 
     void persistTree(nextNodes);
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      if (parentId) {
+        next.add(parentId);
+      }
+      next.add(newFolderId);
+      return next;
+    });
     setEditingTargetId(newFolderId);
     setEditingValue(newFolderName);
     setMenu((current) => ({ ...current, open: false }));
     setCreateOpen(false);
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+
+      return next;
+    });
   };
 
   const removeSelected = () => {
@@ -488,6 +552,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   const childNodes = currentNode.children ?? [];
                   const hasChildren = childNodes.length > 0;
                   const isFolder = currentNode.kind === "folder";
+                  const isExpanded = isFolder && expandedFolderIds.has(currentNode.id);
                   const isEditing = editingTargetId === currentNode.id;
                   const isDragSource = draggingId === currentNode.id;
                   const isDropTarget = dropTargetId === currentNode.id;
@@ -503,9 +568,14 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         onDragOver={(event) => handleDragOverNode(event, currentNode.id)}
                         onDrop={(event) => handleDropNode(event, currentNode.id)}
                         onDragEnd={handleDragEnd}
+                        onDoubleClick={() => {
+                          if (isFolder && !isEditing) {
+                            toggleFolder(currentNode.id);
+                          }
+                        }}
                       >
-                        <span className="text-zinc-500">{isFolder ? "▾" : "▸"}</span>
-                        {isFolder ? <FolderIcon open={hasChildren} /> : <ItemIcon iconKey={currentNode.iconKey} />}
+                        <span className="text-zinc-500">{isFolder ? (isExpanded ? "▾" : "▸") : "▸"}</span>
+                        {isFolder ? <FolderIcon open={isExpanded} /> : <ItemIcon iconKey={currentNode.iconKey} />}
                         {isEditing ? (
                           <input
                             autoFocus
@@ -520,7 +590,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         )}
                       </div>
 
-                      {isFolder && hasChildren ? <ul className="space-y-1">{childNodes.map((child) => renderNode(child, depth + 1))}</ul> : null}
+                      {isFolder && isExpanded && hasChildren ? <ul className="space-y-1">{childNodes.map((child) => renderNode(child, depth + 1))}</ul> : null}
                     </li>
                   );
                 };
