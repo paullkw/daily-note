@@ -350,15 +350,19 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const createFolder = () => {
     const targetId = menu.targetId;
     const targetNode = targetId ? findNodeById(treeNodes, targetId) : null;
-    const parentId = !targetNode || targetNode.kind === "folder" ? targetId : null;
+    const parentId = targetNode ? targetId : null;
+    const newFolderId = createNodeId();
+    const newFolderName = "New Folder";
     const nextNodes = addChildFolder(treeNodes, parentId, {
-      id: createNodeId(),
-      name: "New Folder",
+      id: newFolderId,
+      name: newFolderName,
       kind: "folder",
       children: [],
     });
 
     void persistTree(nextNodes);
+    setEditingTargetId(newFolderId);
+    setEditingValue(newFolderName);
     setMenu((current) => ({ ...current, open: false }));
     setCreateOpen(false);
   };
