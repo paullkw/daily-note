@@ -289,9 +289,13 @@ type DashboardExplorerProps = {
   initialState: ExplorerState;
 };
 
+const TEMPLATE_NAMES: string[] = [];
+const TEMPLATE_ITEM_NAMES: string[] = [];
+
 export default function DashboardExplorer({ initialState }: DashboardExplorerProps) {
   const [treeNodes, setTreeNodes] = useState<ExplorerNode[]>(() => initialState.nodes);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => collectFolderIds(initialState.nodes));
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>({ open: false, x: 0, y: 0, scope: "root", targetId: null });
   const [createOpen, setCreateOpen] = useState(false);
   const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
@@ -553,6 +557,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   };
 
   const treeRowClass = "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100";
+  const showSettingsPage = selectedNodeId === SETTING_NODE_ID;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl px-4 py-6 sm:px-6">
@@ -580,6 +585,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   const isFolder = currentNode.kind === "folder";
                   const isExpanded = isFolder && expandedFolderIds.has(currentNode.id);
                   const disableContextMenu = currentNode.id === SETTING_NODE_ID;
+                  const isSelected = selectedNodeId === currentNode.id;
                   const isEditing = editingTargetId === currentNode.id;
                   const isDragSource = draggingId === currentNode.id;
                   const isDropTarget = dropTargetId === currentNode.id;
@@ -587,8 +593,9 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   return (
                     <li key={currentNode.id}>
                       <div
-                        className={`${treeRowClass} ${isDropTarget ? "bg-zinc-200" : ""} ${isDragSource ? "opacity-50" : ""}`}
+                        className={`${treeRowClass} ${isSelected ? "bg-zinc-100" : ""} ${isDropTarget ? "bg-zinc-200" : ""} ${isDragSource ? "opacity-50" : ""}`}
                         style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
+                        onClick={() => setSelectedNodeId(currentNode.id)}
                         onContextMenu={(event) => {
                           if (disableContextMenu) {
                             event.preventDefault();
@@ -636,7 +643,49 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           </nav>
         </aside>
 
-        <section className="min-h-[420px] bg-white" aria-label="Dashboard content area" />
+        <section className="min-h-[420px] bg-white p-6" aria-label="Dashboard content area">
+          {showSettingsPage ? (
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-800">Setting</h2>
+                <p className="mt-1 text-sm text-zinc-500">Manage templates and template items for your notes.</p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button type="button" className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100">
+                  Create template
+                </button>
+                <button type="button" className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100">
+                  Create template item
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <section className="rounded-lg border border-zinc-200 p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Template list</h3>
+                  <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+                    {TEMPLATE_NAMES.map((name) => (
+                      <li key={name} className="rounded-md bg-zinc-50 px-3 py-2">
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+
+                <section className="rounded-lg border border-zinc-200 p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Template item list</h3>
+                  <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+                    {TEMPLATE_ITEM_NAMES.map((name) => (
+                      <li key={name} className="rounded-md bg-zinc-50 px-3 py-2">
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+            </div>
+          ) : null}
+        </section>
       </div>
 
       {menu.open ? (
