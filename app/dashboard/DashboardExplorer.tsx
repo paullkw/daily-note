@@ -641,16 +641,6 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
       {menu.open ? (
         <div className="fixed z-50 min-w-44 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y }}>
-          <button
-            type="button"
-            className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
-            onMouseEnter={() => setCreateOpen(false)}
-            onClick={startRename}
-            disabled={!menu.targetId}
-          >
-            Rename
-          </button>
-
           <div className="relative" onMouseEnter={() => setCreateOpen(true)} onMouseLeave={() => setCreateOpen(false)}>
             <button type="button" className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100">
               <span>Create</span>
@@ -670,15 +660,21 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           <button
             type="button"
             className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+            onMouseEnter={() => setCreateOpen(false)}
+            onClick={startRename}
+            disabled={!menu.targetId}
+          >
+            Rename
+          </button>
+
+          <button
+            type="button"
+            className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
             onClick={removeSelected}
             disabled={!menu.targetId}
           >
             Remove
           </button>
-
-          <div className="mt-1 border-t border-zinc-100 pt-1 text-xs text-zinc-500">
-            {menu.scope === "root" ? "Right-clicked Explorer" : "Right-clicked item"}
-          </div>
         </div>
       ) : null}
     </main>
