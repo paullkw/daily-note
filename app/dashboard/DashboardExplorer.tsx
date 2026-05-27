@@ -18,6 +18,8 @@ type MenuState = {
   targetId: string | null;
 };
 
+const SETTING_NODE_ID = "setting";
+
 function FolderIcon({ open }: { open?: boolean }) {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -94,6 +96,22 @@ function ItemIcon({ iconKey }: { iconKey?: ExplorerIconKey }) {
         <circle cx="9" cy="12" r="1" />
         <circle cx="15" cy="12" r="1" />
         <path d="M8 16c1.5-1 2.8-1.5 4-1.5s2.5.5 4 1.5" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "setting") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3v2" />
+        <path d="M12 19v2" />
+        <path d="M3 12h2" />
+        <path d="M19 12h2" />
+        <path d="M5.6 5.6l1.4 1.4" />
+        <path d="M17 17l1.4 1.4" />
+        <path d="M5.6 18.4 7 17" />
+        <path d="M17 7l1.4-1.4" />
       </svg>
     );
   }
@@ -453,6 +471,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   };
 
   const handleDragOverNode = (event: DragEvent<HTMLDivElement>, nodeId: string) => {
+    if (nodeId === SETTING_NODE_ID) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "move";
@@ -466,6 +488,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     setDropTargetId(null);
     setDraggingId(null);
+
+    if (targetId === SETTING_NODE_ID) {
+      return;
+    }
 
     if (!draggedId || draggedId === targetId) {
       return;
@@ -553,6 +579,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   const hasChildren = childNodes.length > 0;
                   const isFolder = currentNode.kind === "folder";
                   const isExpanded = isFolder && expandedFolderIds.has(currentNode.id);
+                  const disableContextMenu = currentNode.id === SETTING_NODE_ID;
                   const isEditing = editingTargetId === currentNode.id;
                   const isDragSource = draggingId === currentNode.id;
                   const isDropTarget = dropTargetId === currentNode.id;
@@ -562,7 +589,15 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                       <div
                         className={`${treeRowClass} ${isDropTarget ? "bg-zinc-200" : ""} ${isDragSource ? "opacity-50" : ""}`}
                         style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
-                        onContextMenu={(event) => openMenuAt(event, "item", { id: currentNode.id })}
+                        onContextMenu={(event) => {
+                          if (disableContextMenu) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return;
+                          }
+
+                          openMenuAt(event, "item", { id: currentNode.id });
+                        }}
                         draggable
                         onDragStart={(event) => handleDragStart(event, currentNode.id)}
                         onDragOver={(event) => handleDragOverNode(event, currentNode.id)}
@@ -574,7 +609,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           }
                         }}
                       >
-                        <span className="text-zinc-500">{isFolder ? (isExpanded ? "▾" : "▸") : "▸"}</span>
+                        <span className="text-zinc-500">{hasChildren ? (isExpanded ? "▾" : "▸") : ""}</span>
                         {isFolder ? <FolderIcon open={isExpanded} /> : <ItemIcon iconKey={currentNode.iconKey} />}
                         {isEditing ? (
                           <input

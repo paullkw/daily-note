@@ -1,6 +1,15 @@
 export type ExplorerNodeKind = "folder" | "item";
 
-export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime";
+export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "setting";
+
+const SETTING_NODE_ID = "setting";
+
+const SETTING_NODE: ExplorerNode = {
+  id: SETTING_NODE_ID,
+  name: "Setting",
+  kind: "item",
+  iconKey: "setting",
+};
 
 export type ExplorerNode = {
   id: string;
@@ -31,6 +40,7 @@ export const DEFAULT_EXPLORER_STATE: ExplorerState = {
     { id: "movie", name: "Movie", kind: "item", iconKey: "movie" },
     { id: "book", name: "Book", kind: "item", iconKey: "book" },
     { id: "anime", name: "Anime", kind: "item", iconKey: "anime" },
+    SETTING_NODE,
   ],
 };
 
@@ -54,7 +64,8 @@ function normalizeNode(input: unknown): ExplorerNode | null {
     source.iconKey === "comic" ||
     source.iconKey === "movie" ||
     source.iconKey === "book" ||
-    source.iconKey === "anime"
+    source.iconKey === "anime" ||
+    source.iconKey === "setting"
       ? source.iconKey
       : undefined;
 
@@ -82,6 +93,10 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
 
   if (nodes.length === 0) {
     return DEFAULT_EXPLORER_STATE;
+  }
+
+  if (!nodes.some((node) => node.id === SETTING_NODE_ID)) {
+    nodes.push(SETTING_NODE);
   }
 
   return { nodes };
