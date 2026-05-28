@@ -626,6 +626,8 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setMenu((current) => ({ ...current, open: false, targetId: null }));
     setCreateOpen(false);
     setSelectedNodeId(newItem.id);
+    setEditingTargetId(newItem.id);
+    setEditingValue(newItem.name);
   };
 
   const createFolder = () => {
