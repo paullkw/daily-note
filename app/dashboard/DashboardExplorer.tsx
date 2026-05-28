@@ -353,6 +353,37 @@ function findTemplateByName(templates: TemplateDefinition[], name: string): Temp
   return templates.find((template) => template.name === name) ?? null;
 }
 
+function findTemplateForNode(
+  nodes: ExplorerNode[],
+  targetNodeId: string,
+  templates: TemplateDefinition[],
+  inheritedTemplate: TemplateDefinition | null = null,
+): TemplateDefinition | null {
+  for (const node of nodes) {
+    const directTemplate =
+      node.templateId
+        ? templates.find((template) => template.id === node.templateId) ?? null
+        : findTemplateByName(templates, node.name);
+    const effectiveTemplate = directTemplate ?? inheritedTemplate;
+
+    if (node.id === targetNodeId) {
+      return effectiveTemplate;
+    }
+
+    if (!node.children || node.children.length === 0) {
+      continue;
+    }
+
+    const childResult = findTemplateForNode(node.children, targetNodeId, templates, effectiveTemplate);
+
+    if (childResult) {
+      return childResult;
+    }
+  }
+
+  return null;
+}
+
 function createTemplateBoundItem(template: TemplateDefinition, templateItems: TemplateItemDefinition[]): ExplorerNode {
   return {
     id: createNodeId(),
@@ -576,7 +607,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       return;
     }
 
-    const template = findTemplateByName(templates, targetNode.name);
+    const template = findTemplateForNode(treeNodes, targetNode.id, templates);
 
     if (!template) {
       return;
@@ -1416,7 +1447,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   type="button"
                   className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                   onClick={createTemplateItem}
-                  disabled={!menu.targetId || !findNodeById(treeNodes, menu.targetId) || !findTemplateByName(templates, findNodeById(treeNodes, menu.targetId)?.name ?? "")}
+                  disabled={!menu.targetId || !findNodeById(treeNodes, menu.targetId) || !findTemplateForNode(treeNodes, menu.targetId, templates)}
                 >
                   <ItemIcon iconKey="template" />
                   <span className="ml-2">Item</span>
