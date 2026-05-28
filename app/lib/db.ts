@@ -73,6 +73,8 @@ type DashboardTreeviewRow = {
 
 export type DashboardTreeviewState = {
   nodes: unknown[];
+  templates?: unknown[];
+  templateItems?: unknown[];
 };
 
 function mapUser(row: UserRow): User {
@@ -130,7 +132,14 @@ function parseTreeState(value: string): DashboardTreeviewState | null {
       return null;
     }
 
-    return { nodes };
+    const templates = (parsed as { templates?: unknown }).templates;
+    const templateItems = (parsed as { templateItems?: unknown }).templateItems;
+
+    return {
+      nodes,
+      templates: Array.isArray(templates) ? templates : undefined,
+      templateItems: Array.isArray(templateItems) ? templateItems : undefined,
+    };
   } catch {
     return null;
   }
