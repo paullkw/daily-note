@@ -1530,7 +1530,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                 onChange={(event) => handleEpisodeCheckboxChange(episodeNumber, event.target.checked)}
                                 className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                               />
-                              <span>{(episodeLabel.trim() || EPISODE_TEMPLATE_ITEM_NAME)} {episodeNumber}</span>
+                              <span>{episodeNumber}</span>
                             </label>
                           </li>
                         ))}
@@ -1856,7 +1856,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                   }}
                                   className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                                 />
-                                <span>{currentEpisodeLabel} {episodeNumber}</span>
+                                <span>{episodeNumber}</span>
                               </label>
                             </li>
                           ))}
