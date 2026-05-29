@@ -956,6 +956,17 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
   };
 
+  const confirmRemoveSelectedTemplateItem = (itemId: string, label: string) => {
+    const displayLabel = label.trim() || "item";
+    const shouldRemove = window.confirm(`Delete \"${displayLabel}\"?`);
+
+    if (!shouldRemove) {
+      return;
+    }
+
+    void removeSelectedTemplateItem(itemId);
+  };
+
   const openTemplateEditor = (templateId: string) => {
     const template = templates.find((currentTemplate) => currentTemplate.id === templateId);
 
@@ -1658,35 +1669,37 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
                   return (
                     <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-between gap-3">
+                        {isEditingLabel ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={selectedTemplateEditingLabelValue}
+                            onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                            onBlur={() => void commitSelectedTemplateLabelEdit()}
+                            onKeyDown={handleSelectedTemplateLabelKeyDown}
+                            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base font-semibold text-zinc-700 outline-none focus:border-zinc-400"
+                            placeholder="Label"
+                          />
+                        ) : (
+                          <label
+                            className="block cursor-text text-base font-semibold text-zinc-700"
+                            onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
+                            title="Double click to edit label"
+                          >
+                            {textboxItemLabel}
+                          </label>
+                        )}
                         <button
                           type="button"
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
-                          onClick={() => void removeSelectedTemplateItem(item.id)}
+                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                          onClick={() => confirmRemoveSelectedTemplateItem(item.id, textboxItemLabel)}
+                          aria-label={`Remove ${textboxItemLabel}`}
+                          title="Remove"
                         >
-                          Remove
+                          ×
                         </button>
                       </div>
-                      {isEditingLabel ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          value={selectedTemplateEditingLabelValue}
-                          onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
-                          onBlur={() => void commitSelectedTemplateLabelEdit()}
-                          onKeyDown={handleSelectedTemplateLabelKeyDown}
-                          className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 outline-none focus:border-zinc-400"
-                          placeholder="Label"
-                        />
-                      ) : (
-                        <label
-                          className="mt-3 block cursor-text text-sm font-medium text-zinc-700"
-                          onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
-                          title="Double click to edit label"
-                        >
-                          {textboxItemLabel}
-                        </label>
-                      )}
                       <input
                         type="text"
                         value={item.config.value}
@@ -1716,35 +1729,37 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
                   return (
                     <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-between gap-3">
+                        {isEditingLabel ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={selectedTemplateEditingLabelValue}
+                            onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                            onBlur={() => void commitSelectedTemplateLabelEdit()}
+                            onKeyDown={handleSelectedTemplateLabelKeyDown}
+                            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base font-semibold text-zinc-700 outline-none focus:border-zinc-400"
+                            placeholder="Label"
+                          />
+                        ) : (
+                          <label
+                            className="block cursor-text text-base font-semibold text-zinc-700"
+                            onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
+                            title="Double click to edit label"
+                          >
+                            {textareaItemLabel}
+                          </label>
+                        )}
                         <button
                           type="button"
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
-                          onClick={() => void removeSelectedTemplateItem(item.id)}
+                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                          onClick={() => confirmRemoveSelectedTemplateItem(item.id, textareaItemLabel)}
+                          aria-label={`Remove ${textareaItemLabel}`}
+                          title="Remove"
                         >
-                          Remove
+                          ×
                         </button>
                       </div>
-                      {isEditingLabel ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          value={selectedTemplateEditingLabelValue}
-                          onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
-                          onBlur={() => void commitSelectedTemplateLabelEdit()}
-                          onKeyDown={handleSelectedTemplateLabelKeyDown}
-                          className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 outline-none focus:border-zinc-400"
-                          placeholder="Label"
-                        />
-                      ) : (
-                        <label
-                          className="mt-3 block cursor-text text-sm font-medium text-zinc-700"
-                          onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
-                          title="Double click to edit label"
-                        >
-                          {textareaItemLabel}
-                        </label>
-                      )}
                       <textarea
                         value={item.config.value}
                         onChange={(event) => void updateSelectedTemplateItemState(item.id, (currentItem) => {
@@ -1779,35 +1794,37 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
                 return (
                   <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                    <div className="flex items-center justify-end gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      {isEditingLabel ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={selectedTemplateEditingLabelValue}
+                          onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                          onBlur={() => void commitSelectedTemplateLabelEdit()}
+                          onKeyDown={handleSelectedTemplateLabelKeyDown}
+                          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base font-semibold text-zinc-700 outline-none focus:border-zinc-400"
+                          placeholder="Episode"
+                        />
+                      ) : (
+                        <label
+                          className="block cursor-text text-base font-semibold text-zinc-700"
+                          onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
+                          title="Double click to edit label"
+                        >
+                          {currentEpisodeLabel}
+                        </label>
+                      )}
                       <button
                         type="button"
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
-                        onClick={() => void removeSelectedTemplateItem(item.id)}
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                        onClick={() => confirmRemoveSelectedTemplateItem(item.id, currentEpisodeLabel)}
+                        aria-label={`Remove ${currentEpisodeLabel}`}
+                        title="Remove"
                       >
-                        Remove
+                        ×
                       </button>
                     </div>
-                    {isEditingLabel ? (
-                      <input
-                        autoFocus
-                        type="text"
-                        value={selectedTemplateEditingLabelValue}
-                        onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
-                        onBlur={() => void commitSelectedTemplateLabelEdit()}
-                        onKeyDown={handleSelectedTemplateLabelKeyDown}
-                        className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 outline-none focus:border-zinc-400"
-                        placeholder="Episode"
-                      />
-                    ) : (
-                      <label
-                        className="mt-3 block cursor-text text-sm font-medium text-zinc-700"
-                        onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
-                        title="Double click to edit label"
-                      >
-                        {currentEpisodeLabel}
-                      </label>
-                    )}
                     <div className="mt-3 flex items-center gap-3">
                       <input
                         type="number"
