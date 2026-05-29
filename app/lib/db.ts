@@ -1,11 +1,11 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 const dbDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dbDir, "app.db");
 
-type SqliteDatabase = InstanceType<typeof Database>;
+type SqliteDatabase = DatabaseSync;
 
 declare global {
   var __sqliteDb: SqliteDatabase | undefined;
@@ -14,7 +14,7 @@ declare global {
 function createDb(): SqliteDatabase {
   mkdirSync(dbDir, { recursive: true });
 
-  const db = new Database(dbPath);
+  const db = new DatabaseSync(dbPath);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -87,25 +87,25 @@ function mapUser(row: UserRow): User {
 }
 
 export function findUserByEmail(email: string): User | null {
-  const statement = db.prepare<[string], UserRow>(
+  const statement = db.prepare(
     "SELECT id, email, password_hash, created_at FROM users WHERE email = ?"
   );
-  const row = statement.get(email);
+  const row = statement.get(email) as UserRow | undefined;
 
   return row ? mapUser(row) : null;
 }
 
 export function findUserById(id: number): User | null {
-  const statement = db.prepare<[number], UserRow>(
+  const statement = db.prepare(
     "SELECT id, email, password_hash, created_at FROM users WHERE id = ?"
   );
-  const row = statement.get(id);
+  const row = statement.get(id) as UserRow | undefined;
 
   return row ? mapUser(row) : null;
 }
 
 export function createUser(email: string, passwordHash: string): User {
-  const insertStatement = db.prepare<[string, string]>(
+  const insertStatement = db.prepare(
     "INSERT INTO users (email, password_hash) VALUES (?, ?)"
   );
   const result = insertStatement.run(email, passwordHash);
@@ -146,10 +146,10 @@ function parseTreeState(value: string): DashboardTreeviewState | null {
 }
 
 export function getDashboardTreeviewState(userId: number): DashboardTreeviewState | null {
-  const statement = db.prepare<[number], DashboardTreeviewRow>(
+  const statement = db.prepare(
     "SELECT user_id, tree_json FROM dashboard_treeviews WHERE user_id = ?"
   );
-  const row = statement.get(userId);
+  const row = statement.get(userId) as DashboardTreeviewRow | undefined;
 
   if (!row) {
     return null;
@@ -159,7 +159,7 @@ export function getDashboardTreeviewState(userId: number): DashboardTreeviewStat
 }
 
 export function upsertDashboardTreeviewState(userId: number, state: DashboardTreeviewState): void {
-  const statement = db.prepare<[number, string]>(`
+  const statement = db.prepare(`
     INSERT INTO dashboard_treeviews (user_id, tree_json, updated_at)
     VALUES (?, ?, datetime('now'))
     ON CONFLICT(user_id) DO UPDATE SET
