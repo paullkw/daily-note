@@ -20,7 +20,7 @@ type MenuState = {
 
 type TemplateDraftEntry = {
   draftId: string;
-  itemId: string;
+  itemState: TemplateItemDefinition;
 };
 
 const SETTING_NODE_ID = "setting";
@@ -304,6 +304,32 @@ function createNodeId(): string {
   return `node-${Date.now()}-${random}`;
 }
 
+function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItemDefinition {
+  if (item.type === "episode") {
+    return {
+      ...item,
+      config: {
+        ...item.config,
+        watchedEpisodes: [...item.config.watchedEpisodes],
+      },
+    };
+  }
+
+  return {
+    ...item,
+    config: {
+      ...item.config,
+    },
+  };
+}
+
+function createTemplateItemState(item: TemplateItemDefinition): TemplateItemDefinition {
+  return {
+    ...cloneTemplateItemDefinition(item),
+    id: createNodeId(),
+  };
+}
+
 function collectFolderIds(nodes: ExplorerNode[]): Set<string> {
   const folderIds = new Set<string>();
 
@@ -407,29 +433,14 @@ function createTemplateBoundItem(template: TemplateDefinition, templateItems: Te
 }
 
 function createTemplateInstanceState(template: TemplateDefinition, templateItems: TemplateItemDefinition[]): TemplateInstanceState {
-  const itemStates = template.itemIds
-    .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
-    .filter((item): item is TemplateItemDefinition => Boolean(item))
-    .map((item) => {
-      if (item.type === "episode") {
-        return {
-          ...item,
-          config: {
-            startEpisode: item.config.startEpisode,
-            endEpisode: item.config.endEpisode,
-            watchedEpisodes: [...item.config.watchedEpisodes],
-          },
-        };
-      }
+  const sourceStates =
+    template.itemStates.length > 0
+      ? template.itemStates
+      : template.itemIds
+          .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
+          .filter((item): item is TemplateItemDefinition => Boolean(item));
 
-      return {
-        ...item,
-        config: {
-          label: item.config.label,
-          value: item.config.value,
-        },
-      };
-    });
+  const itemStates = sourceStates.map((item) => createTemplateItemState(item));
 
   return { itemStates };
 }
@@ -464,6 +475,9 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const [templateDraftEntries, setTemplateDraftEntries] = useState<TemplateDraftEntry[]>([]);
   const [templateDraftDirty, setTemplateDraftDirty] = useState(false);
   const [templateAddMenuOpen, setTemplateAddMenuOpen] = useState(false);
+  const [selectedTemplateAddMenuOpen, setSelectedTemplateAddMenuOpen] = useState(false);
+  const [selectedTemplateEditingLabelItemId, setSelectedTemplateEditingLabelItemId] = useState<string | null>(null);
+  const [selectedTemplateEditingLabelValue, setSelectedTemplateEditingLabelValue] = useState("");
   const [draggingTemplateEditorItemId, setDraggingTemplateEditorItemId] = useState<string | null>(null);
   const [templateEditorDropTargetId, setTemplateEditorDropTargetId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>({ open: false, x: 0, y: 0, scope: "root", targetId: null });
@@ -475,25 +489,16 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
   const activeTemplate = activeTemplateId ? templates.find((template) => template.id === activeTemplateId) ?? null : null;
   const activeTemplateItem = activeTemplateItemId ? templateItems.find((item) => item.id === activeTemplateItemId) ?? null : null;
-  const draftTemplateItems = templateDraftEntries
-    .map((entry) => {
-      const item = templateItems.find((currentItem) => currentItem.id === entry.itemId) ?? null;
-
-      if (!item) {
-        return null;
-      }
-
-      return {
-        draftId: entry.draftId,
-        item,
-      };
-    })
-    .filter((entry): entry is { draftId: string; item: TemplateItemDefinition } => Boolean(entry));
+  const draftTemplateItems = templateDraftEntries.map((entry) => ({
+    draftId: entry.draftId,
+    item: entry.itemState,
+  }));
   const episodeTemplateConfig = activeTemplateItem?.type === "episode" ? activeTemplateItem.config : null;
   const textboxTemplateConfig = activeTemplateItem?.type === "textbox" ? activeTemplateItem.config : null;
   const textareaTemplateConfig = activeTemplateItem?.type === "textarea" ? activeTemplateItem.config : null;
   const episodeStartEpisode = episodeTemplateConfig?.startEpisode;
   const episodeEndEpisode = episodeTemplateConfig?.endEpisode;
+  const episodeLabel = episodeTemplateConfig?.label ?? EPISODE_TEMPLATE_ITEM_NAME;
   const startEpisode = episodeStartEpisode === null || episodeStartEpisode === undefined ? "" : String(episodeStartEpisode);
   const lastEpisode = episodeEndEpisode === null || episodeEndEpisode === undefined ? "" : String(episodeEndEpisode);
   const watchedEpisodes = new Set(episodeTemplateConfig?.watchedEpisodes ?? []);
@@ -806,6 +811,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const selectedTemplateState = selectedTemplateNode
     ? selectedTemplateNode.templateState ?? (selectedTemplate ? createTemplateInstanceState(selectedTemplate, templateItems) : null)
     : null;
+  const selectedTemplateAddableItems = templateItems;
 
   const selectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
@@ -815,6 +821,41 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setTemplateDraftEntries([]);
     setTemplateDraftDirty(false);
     setTemplateAddMenuOpen(false);
+    setSelectedTemplateAddMenuOpen(false);
+    setSelectedTemplateEditingLabelItemId(null);
+    setSelectedTemplateEditingLabelValue("");
+  };
+
+  const startSelectedTemplateLabelEdit = (itemId: string, currentLabel: string) => {
+    setSelectedTemplateEditingLabelItemId(itemId);
+    setSelectedTemplateEditingLabelValue(currentLabel);
+  };
+
+  const cancelSelectedTemplateLabelEdit = () => {
+    setSelectedTemplateEditingLabelItemId(null);
+    setSelectedTemplateEditingLabelValue("");
+  };
+
+  const commitSelectedTemplateLabelEdit = async () => {
+    if (!selectedTemplateEditingLabelItemId) {
+      return;
+    }
+
+    await updateSelectedTemplateItemLabel(selectedTemplateEditingLabelItemId, selectedTemplateEditingLabelValue);
+    cancelSelectedTemplateLabelEdit();
+  };
+
+  const handleSelectedTemplateLabelKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitSelectedTemplateLabelEdit();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelSelectedTemplateLabelEdit();
+    }
   };
 
   const persistSelectedTemplateState = async (nextTemplateState: TemplateInstanceState) => {
@@ -835,7 +876,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     await persistSelectedTemplateState({ itemStates: nextItemStates });
   };
 
-  const updateSelectedEpisodeItemState = async (itemId: string, nextStartValue: string, nextLastValue: string, nextWatchedEpisodes: Set<number>) => {
+  const updateSelectedEpisodeItemState = async (itemId: string, nextLabel: string, nextStartValue: string, nextLastValue: string, nextWatchedEpisodes: Set<number>) => {
     const nextStartEpisode = parseEpisodeInputValue(nextStartValue);
     const nextLastEpisode = parseEpisodeInputValue(nextLastValue);
     const hasValidRange = nextStartEpisode !== null && nextLastEpisode !== null && nextLastEpisode >= nextStartEpisode;
@@ -851,12 +892,68 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       return {
         ...item,
         config: {
+          label: nextLabel,
           startEpisode: nextStartEpisode,
           endEpisode: hasValidRange ? nextLastEpisode : null,
           watchedEpisodes: filteredWatchedEpisodes,
         },
       };
     });
+  };
+
+  const updateSelectedTemplateItemLabel = async (itemId: string, nextLabel: string) => {
+    await updateSelectedTemplateItemState(itemId, (item) => {
+      if (item.type === "episode") {
+        return {
+          ...item,
+          config: {
+            ...item.config,
+            label: nextLabel,
+          },
+        };
+      }
+
+      if (item.type === "textbox" || item.type === "textarea") {
+        return {
+          ...item,
+          config: {
+            ...item.config,
+            label: nextLabel,
+          },
+        };
+      }
+
+      return item;
+    });
+  };
+
+  const addSelectedTemplateItem = async (sourceItemId: string) => {
+    if (!selectedTemplateState) {
+      return;
+    }
+
+    const sourceItem = selectedTemplateAddableItems.find((item) => item.id === sourceItemId);
+
+    if (!sourceItem) {
+      return;
+    }
+
+    const nextItemStates = [...selectedTemplateState.itemStates, createTemplateItemState(sourceItem)];
+    await persistSelectedTemplateState({ itemStates: nextItemStates });
+    setSelectedTemplateAddMenuOpen(false);
+  };
+
+  const removeSelectedTemplateItem = async (itemId: string) => {
+    if (!selectedTemplateState) {
+      return;
+    }
+
+    const nextItemStates = selectedTemplateState.itemStates.filter((item) => item.id !== itemId);
+    await persistSelectedTemplateState({ itemStates: nextItemStates });
+
+    if (selectedTemplateEditingLabelItemId === itemId) {
+      cancelSelectedTemplateLabelEdit();
+    }
   };
 
   const openTemplateEditor = (templateId: string) => {
@@ -867,7 +964,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
 
     setActiveTemplateId(template.id);
-    setTemplateDraftEntries(template.itemIds.map((itemId) => ({ draftId: createNodeId(), itemId })));
+    setTemplateDraftEntries(template.itemStates.map((itemState) => ({ draftId: createNodeId(), itemState: cloneTemplateItemDefinition(itemState) })));
     setTemplateDraftDirty(false);
     setTemplateAddMenuOpen(false);
     setSettingView("template-editor");
@@ -898,7 +995,13 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   };
 
   const addTemplateItemToDraft = (itemId: string) => {
-    setTemplateDraftEntries((current) => [...current, { draftId: createNodeId(), itemId }]);
+    const templateItem = templateItems.find((item) => item.id === itemId);
+
+    if (!templateItem) {
+      return;
+    }
+
+    setTemplateDraftEntries((current) => [...current, { draftId: createNodeId(), itemState: createTemplateItemState(templateItem) }]);
     setTemplateDraftDirty(true);
     setTemplateAddMenuOpen(false);
   };
@@ -915,29 +1018,66 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     const nextTemplates = templates.map((template) => (
       template.id === activeTemplateId
-        ? { ...template, itemIds: templateDraftEntries.map((entry) => entry.itemId) }
+        ? { ...template, itemIds: templateDraftEntries.map((entry) => entry.itemState.id), itemStates: templateDraftEntries.map((entry) => cloneTemplateItemDefinition(entry.itemState)) }
         : template
     ));
     await persistDashboardState({ nextTemplates });
     setTemplateDraftDirty(false);
   };
 
-  const updateTemplateEditorLabeledItemLabel = async (itemId: string, nextLabel: string) => {
-    const nextTemplateItems = templateItems.map((item) => {
-      if (item.id !== itemId || (item.type !== "textbox" && item.type !== "textarea")) {
-        return item;
+  const updateTemplateEditorLabeledItemLabel = (draftId: string, nextLabel: string) => {
+    setTemplateDraftEntries((current) => current.map((entry) => {
+      if (entry.draftId !== draftId) {
+        return entry;
       }
 
-      return {
-        ...item,
-        config: {
-          ...item.config,
-          label: nextLabel,
-        },
-      };
-    });
+      if (entry.itemState.type === "episode") {
+        const currentItem = entry.itemState;
+        return {
+          ...entry,
+          itemState: {
+            ...currentItem,
+            config: {
+              label: nextLabel,
+              startEpisode: currentItem.config.startEpisode,
+              endEpisode: currentItem.config.endEpisode,
+              watchedEpisodes: [...currentItem.config.watchedEpisodes],
+            },
+          },
+        };
+      }
 
-    await persistTemplateItems(nextTemplateItems);
+      if (entry.itemState.type === "textbox") {
+        const currentItem = entry.itemState;
+        return {
+          ...entry,
+          itemState: {
+            ...currentItem,
+            config: {
+              label: nextLabel,
+              value: currentItem.config.value,
+            },
+          },
+        };
+      }
+
+      if (entry.itemState.type === "textarea") {
+        const currentItem = entry.itemState;
+        return {
+          ...entry,
+          itemState: {
+            ...currentItem,
+            config: {
+              label: nextLabel,
+              value: currentItem.config.value,
+            },
+          },
+        };
+      }
+
+      return entry;
+    }));
+    setTemplateDraftDirty(true);
   };
 
   const handleTemplateEditorItemDragStart = (event: DragEvent<HTMLLIElement>, draftId: string) => {
@@ -994,9 +1134,32 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       return {
         ...item,
         config: {
+          label: item.config.label,
           startEpisode: nextStartEpisode,
           endEpisode: hasValidRange ? nextLastEpisode : null,
           watchedEpisodes: filteredWatchedEpisodes,
+        },
+      };
+    });
+
+    await persistTemplateItems(nextTemplateItems);
+  };
+
+  const updateEpisodeTemplateItemLabel = async (nextLabel: string) => {
+    if (!activeTemplateItem || activeTemplateItem.type !== "episode") {
+      return;
+    }
+
+    const nextTemplateItems = templateItems.map((item) => {
+      if (item.id !== activeTemplateItem.id || item.type !== "episode") {
+        return item;
+      }
+
+      return {
+        ...item,
+        config: {
+          ...item.config,
+          label: nextLabel,
         },
       };
     });
@@ -1270,13 +1433,13 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                   </button>
                                 </div>
                               </div>
-                              {item.type === "textbox" || item.type === "textarea" ? (
+                              {item.type === "episode" || item.type === "textbox" || item.type === "textarea" ? (
                                 <div className="mt-3">
                                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Label</label>
                                   <input
                                     type="text"
                                     value={item.config.label}
-                                    onChange={(event) => void updateTemplateEditorLabeledItemLabel(item.id, event.target.value)}
+                                    onChange={(event) => updateTemplateEditorLabeledItemLabel(draftId, event.target.value)}
                                     className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                                     placeholder="Label"
                                   />
@@ -1314,6 +1477,17 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                       Back
                     </button>
                   </div>
+
+                  <section className="rounded-lg border border-zinc-200 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Label</h3>
+                    <input
+                      type="text"
+                      value={episodeLabel}
+                      onChange={(event) => void updateEpisodeTemplateItemLabel(event.target.value)}
+                      className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                      placeholder="Episode"
+                    />
+                  </section>
 
                   <section className="rounded-lg border border-zinc-200 p-4">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Episode range</h3>
@@ -1356,7 +1530,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                 onChange={(event) => handleEpisodeCheckboxChange(episodeNumber, event.target.checked)}
                                 className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                               />
-                              <span>{EPISODE_TEMPLATE_ITEM_NAME} {episodeNumber}</span>
+                              <span>{(episodeLabel.trim() || EPISODE_TEMPLATE_ITEM_NAME)} {episodeNumber}</span>
                             </label>
                           </li>
                         ))}
@@ -1445,16 +1619,74 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             </div>
           ) : selectedTemplateNode && selectedTemplate && selectedTemplateState ? (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-              <div>
-                <h2 className="text-xl font-semibold text-zinc-800">{selectedNode?.name ?? selectedTemplate.name}</h2>
-                <p className="mt-1 text-sm text-zinc-500">Based on the {selectedTemplate.name} template.</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-zinc-800">{selectedNode?.name ?? selectedTemplate.name}</h2>
+                  <p className="mt-1 text-sm text-zinc-500">Based on the {selectedTemplate.name} template.</p>
+                </div>
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                    onClick={() => setSelectedTemplateAddMenuOpen((current) => !current)}
+                    disabled={selectedTemplateAddableItems.length === 0}
+                  >
+                    Add template item
+                  </button>
+
+                  {selectedTemplateAddMenuOpen ? (
+                    <div className="absolute right-0 top-full z-10 mt-2 min-w-44 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl">
+                      {selectedTemplateAddableItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100"
+                          onClick={() => void addSelectedTemplateItem(item.id)}
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               {selectedTemplateState.itemStates.map((item) => {
                 if (item.type === "textbox") {
+                  const textboxItemLabel = item.config.label.trim() || item.name;
+                  const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
+
                   return (
                     <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                      <label className="mt-3 block text-sm font-medium text-zinc-700">{item.config.label}</label>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                          onClick={() => void removeSelectedTemplateItem(item.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {isEditingLabel ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={selectedTemplateEditingLabelValue}
+                          onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                          onBlur={() => void commitSelectedTemplateLabelEdit()}
+                          onKeyDown={handleSelectedTemplateLabelKeyDown}
+                          className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 outline-none focus:border-zinc-400"
+                          placeholder="Label"
+                        />
+                      ) : (
+                        <label
+                          className="mt-3 block cursor-text text-sm font-medium text-zinc-700"
+                          onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
+                          title="Double click to edit label"
+                        >
+                          {textboxItemLabel}
+                        </label>
+                      )}
                       <input
                         type="text"
                         value={item.config.value}
@@ -1472,16 +1704,47 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           };
                         })}
                         className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
-                        placeholder={item.config.label}
+                        placeholder={textboxItemLabel}
                       />
                     </section>
                   );
                 }
 
                 if (item.type === "textarea") {
+                  const textareaItemLabel = item.config.label.trim() || item.name;
+                  const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
+
                   return (
                     <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                      <label className="mt-3 block text-sm font-medium text-zinc-700">{item.config.label}</label>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                          onClick={() => void removeSelectedTemplateItem(item.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {isEditingLabel ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={selectedTemplateEditingLabelValue}
+                          onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                          onBlur={() => void commitSelectedTemplateLabelEdit()}
+                          onKeyDown={handleSelectedTemplateLabelKeyDown}
+                          className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 outline-none focus:border-zinc-400"
+                          placeholder="Label"
+                        />
+                      ) : (
+                        <label
+                          className="mt-3 block cursor-text text-sm font-medium text-zinc-700"
+                          onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
+                          title="Double click to edit label"
+                        >
+                          {textareaItemLabel}
+                        </label>
+                      )}
                       <textarea
                         value={item.config.value}
                         onChange={(event) => void updateSelectedTemplateItemState(item.id, (currentItem) => {
@@ -1498,7 +1761,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           };
                         })}
                         className="mt-2 min-h-28 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
-                        placeholder={item.config.label}
+                        placeholder={textareaItemLabel}
                       />
                     </section>
                   );
@@ -1511,17 +1774,47 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                 const episodeHasValidRange = episodeStart !== null && episodeEnd !== null && episodeEnd >= episodeStart;
                 const episodeNumbers = episodeHasValidRange ? Array.from({ length: episodeEnd - episodeStart + 1 }, (_, index) => episodeStart + index) : [];
                 const checkedEpisodes = new Set(item.config.watchedEpisodes);
+                const currentEpisodeLabel = item.config.label.trim() || item.name;
+                const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
 
                 return (
                   <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">{item.name}</h3>
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                        onClick={() => void removeSelectedTemplateItem(item.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    {isEditingLabel ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={selectedTemplateEditingLabelValue}
+                        onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                        onBlur={() => void commitSelectedTemplateLabelEdit()}
+                        onKeyDown={handleSelectedTemplateLabelKeyDown}
+                        className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 outline-none focus:border-zinc-400"
+                        placeholder="Episode"
+                      />
+                    ) : (
+                      <label
+                        className="mt-3 block cursor-text text-sm font-medium text-zinc-700"
+                        onDoubleClick={() => startSelectedTemplateLabelEdit(item.id, item.config.label)}
+                        title="Double click to edit label"
+                      >
+                        {currentEpisodeLabel}
+                      </label>
+                    )}
                     <div className="mt-3 flex items-center gap-3">
                       <input
                         type="number"
                         min={0}
                         step={1}
                         value={episodeStartValue}
-                        onChange={(event) => void updateSelectedEpisodeItemState(item.id, event.target.value, episodeEndValue, checkedEpisodes)}
+                        onChange={(event) => void updateSelectedEpisodeItemState(item.id, item.config.label, event.target.value, episodeEndValue, checkedEpisodes)}
                         className="w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder="Start"
                       />
@@ -1531,7 +1824,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         min={0}
                         step={1}
                         value={episodeEndValue}
-                        onChange={(event) => void updateSelectedEpisodeItemState(item.id, episodeStartValue, event.target.value, checkedEpisodes)}
+                        onChange={(event) => void updateSelectedEpisodeItemState(item.id, item.config.label, episodeStartValue, event.target.value, checkedEpisodes)}
                         className="w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder="End"
                       />
@@ -1559,11 +1852,11 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                       nextCheckedEpisodes.delete(episodeNumber);
                                     }
 
-                                    void updateSelectedEpisodeItemState(item.id, episodeStartValue, episodeEndValue, nextCheckedEpisodes);
+                                    void updateSelectedEpisodeItemState(item.id, item.config.label, episodeStartValue, episodeEndValue, nextCheckedEpisodes);
                                   }}
                                   className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                                 />
-                                <span>Episode {episodeNumber}</span>
+                                <span>{currentEpisodeLabel} {episodeNumber}</span>
                               </label>
                             </li>
                           ))}

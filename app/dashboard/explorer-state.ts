@@ -32,6 +32,7 @@ export type TemplateDefinition = {
   id: string;
   name: string;
   itemIds: string[];
+  itemStates: TemplateItemDefinition[];
 };
 
 export type EpisodeTemplateItemDefinition = {
@@ -39,6 +40,7 @@ export type EpisodeTemplateItemDefinition = {
   name: string;
   type: "episode";
   config: {
+    label: string;
     startEpisode: number | null;
     endEpisode: number | null;
     watchedEpisodes: number[];
@@ -72,6 +74,7 @@ export type TemplateInstanceState = {
 };
 
 type EpisodeTemplateItemConfigInput = {
+  label?: unknown;
   startEpisode?: unknown;
   endEpisode?: unknown;
   watchedEpisodes?: unknown;
@@ -82,7 +85,7 @@ type TextboxTemplateItemConfigInput = {
   value?: unknown;
 };
 
-const DEFAULT_TEMPLATES: TemplateDefinition[] = [{ id: "template-drama", name: "Drama", itemIds: [] }];
+const DEFAULT_TEMPLATES: TemplateDefinition[] = [{ id: "template-drama", name: "Drama", itemIds: [], itemStates: [] }];
 
 const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
   {
@@ -90,6 +93,7 @@ const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
     name: "Episode",
     type: "episode",
     config: {
+      label: "Episode",
       startEpisode: null,
       endEpisode: null,
       watchedEpisodes: [],
@@ -139,26 +143,34 @@ export const DEFAULT_EXPLORER_STATE: ExplorerState = {
 };
 
 function cloneDefaultTemplates(): TemplateDefinition[] {
-  return DEFAULT_TEMPLATES.map((template) => ({ ...template, itemIds: [...template.itemIds] }));
+  return DEFAULT_TEMPLATES.map((template) => ({
+    ...template,
+    itemIds: [...template.itemIds],
+    itemStates: template.itemStates.map((itemState) => cloneTemplateItemDefinition(itemState)),
+  }));
+}
+
+function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItemDefinition {
+  if (item.type === "episode") {
+    return {
+      ...item,
+      config: {
+        ...item.config,
+        watchedEpisodes: [...item.config.watchedEpisodes],
+      },
+    };
+  }
+
+  return {
+    ...item,
+    config: {
+      ...item.config,
+    },
+  };
 }
 
 function cloneDefaultTemplateItems(): TemplateItemDefinition[] {
-  return DEFAULT_TEMPLATE_ITEMS.map((item) => {
-    if (item.type === "episode") {
-      return {
-        ...item,
-        config: {
-          ...item.config,
-          watchedEpisodes: [...item.config.watchedEpisodes],
-        },
-      };
-    }
-
-    return {
-      ...item,
-      config: { ...item.config },
-    };
-  });
+  return DEFAULT_TEMPLATE_ITEMS.map((item) => cloneTemplateItemDefinition(item));
 }
 
 function normalizeNode(input: unknown): ExplorerNode | null {
@@ -212,12 +224,15 @@ function normalizeTemplate(input: unknown): TemplateDefinition | null {
   const id = typeof source.id === "string" && source.id.trim() ? source.id.trim() : "";
   const name = typeof source.name === "string" && source.name.trim() ? source.name.trim() : "";
   const itemIds = Array.isArray(source.itemIds) ? source.itemIds.filter((itemId): itemId is string => typeof itemId === "string" && itemId.trim().length > 0) : [];
+  const itemStates = Array.isArray(source.itemStates)
+    ? source.itemStates.map((item) => normalizeTemplateItem(item)).filter((item): item is TemplateItemDefinition => Boolean(item))
+    : [];
 
   if (!id || !name) {
     return null;
   }
 
-  return { id, name, itemIds };
+  return { id, name, itemIds, itemStates };
 }
 
 function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
@@ -235,6 +250,7 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
 
   if (source.type === "episode") {
     const config = (source.config ?? {}) as EpisodeTemplateItemConfigInput;
+    const label = typeof config.label === "string" ? config.label : "Episode";
     const startEpisode = typeof config.startEpisode === "number" && Number.isInteger(config.startEpisode) && config.startEpisode >= 0 ? config.startEpisode : null;
     const endEpisode = typeof config.endEpisode === "number" && Number.isInteger(config.endEpisode) && endEpisodeIsValid(config.endEpisode, startEpisode) ? config.endEpisode : null;
     const watchedEpisodes = Array.isArray(config.watchedEpisodes)
@@ -246,6 +262,7 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
       name,
       type: "episode",
       config: {
+        label,
         startEpisode,
         endEpisode,
         watchedEpisodes,
@@ -349,6 +366,14 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
         .map((template) => ({
           ...template,
           itemIds: template.itemIds.filter((itemId) => availableItemIds.has(itemId)),
+          itemStates:
+            template.itemStates.length > 0
+              ? template.itemStates.map((itemState) => cloneTemplateItemDefinition(itemState))
+              : template.itemIds
+                  .filter((itemId) => availableItemIds.has(itemId))
+                  .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
+                  .filter((item): item is TemplateItemDefinition => Boolean(item))
+                  .map((item) => cloneTemplateItemDefinition(item)),
         }))
     : [];
 
