@@ -319,6 +319,7 @@ function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItem
       config: {
         ...item.config,
         watchedEpisodes: [...item.config.watchedEpisodes],
+        favoriteEpisodes: [...item.config.favoriteEpisodes],
         episodeComments: { ...item.config.episodeComments },
       },
     };
@@ -407,6 +408,14 @@ function filterEpisodeCommentsByRange(episodeComments: Record<string, string>, s
     .map(([episodeNumber, comment]) => [episodeNumber, comment.trim()] as const);
 
   return Object.fromEntries(nextEntries);
+}
+
+function filterEpisodeNumbersByRange(episodes: Set<number>, startEpisode: number | null, endEpisode: number | null): number[] {
+  if (startEpisode === null || endEpisode === null || endEpisode < startEpisode) {
+    return [];
+  }
+
+  return Array.from(episodes).filter((episodeNumber) => episodeNumber >= startEpisode && episodeNumber <= endEpisode);
 }
 
 function findTemplateByName(templates: TemplateDefinition[], name: string): TemplateDefinition | null {
@@ -560,6 +569,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const startEpisode = episodeStartEpisode === null || episodeStartEpisode === undefined ? "" : String(episodeStartEpisode);
   const lastEpisode = episodeEndEpisode === null || episodeEndEpisode === undefined ? "" : String(episodeEndEpisode);
   const watchedEpisodes = new Set(episodeTemplateConfig?.watchedEpisodes ?? []);
+  const favoriteEpisodes = new Set(episodeTemplateConfig?.favoriteEpisodes ?? []);
   const episodeComments = episodeTemplateConfig?.episodeComments ?? {};
   const textboxLabel = textboxTemplateConfig?.label ?? "Label";
   const textboxValue = textboxTemplateConfig?.value ?? "";
@@ -983,16 +993,17 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     nextLastValue: string,
     nextWatchedEpisodes: Set<number>,
     nextEpisodeComments?: Record<string, string>,
+    nextFavoriteEpisodes?: Set<number>,
   ) => {
     const nextStartEpisode = parseEpisodeInputValue(nextStartValue);
     const nextLastEpisode = parseEpisodeInputValue(nextLastValue);
     const hasValidRange = nextStartEpisode !== null && nextLastEpisode !== null && nextLastEpisode >= nextStartEpisode;
-    const filteredWatchedEpisodes = hasValidRange
-      ? Array.from(nextWatchedEpisodes).filter((episodeNumber) => episodeNumber >= nextStartEpisode && episodeNumber <= nextLastEpisode)
-      : [];
+    const filteredWatchedEpisodes = hasValidRange ? filterEpisodeNumbersByRange(nextWatchedEpisodes, nextStartEpisode, nextLastEpisode) : [];
     const currentItem = selectedTemplateState?.itemStates.find((item) => item.id === itemId);
     const currentEpisodeComments = nextEpisodeComments ?? (currentItem && currentItem.type === "episode" ? currentItem.config.episodeComments : {});
+    const currentFavoriteEpisodes = nextFavoriteEpisodes ?? new Set(currentItem && currentItem.type === "episode" ? currentItem.config.favoriteEpisodes : []);
     const filteredEpisodeComments = hasValidRange ? filterEpisodeCommentsByRange(currentEpisodeComments, nextStartEpisode, nextLastEpisode) : {};
+    const filteredFavoriteEpisodes = hasValidRange ? filterEpisodeNumbersByRange(currentFavoriteEpisodes, nextStartEpisode, nextLastEpisode) : [];
 
     await updateSelectedTemplateItemState(itemId, (item) => {
       if (item.type !== "episode") {
@@ -1006,6 +1017,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           startEpisode: nextStartEpisode,
           endEpisode: hasValidRange ? nextLastEpisode : null,
           watchedEpisodes: filteredWatchedEpisodes,
+          favoriteEpisodes: filteredFavoriteEpisodes,
           episodeComments: filteredEpisodeComments,
         },
       };
@@ -1221,6 +1233,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
               startEpisode: currentItem.config.startEpisode,
               endEpisode: currentItem.config.endEpisode,
               watchedEpisodes: [...currentItem.config.watchedEpisodes],
+              favoriteEpisodes: [...currentItem.config.favoriteEpisodes],
               episodeComments: { ...currentItem.config.episodeComments },
             },
           },
@@ -1299,6 +1312,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     nextLastValue: string,
     nextWatchedEpisodes: Set<number>,
     nextEpisodeComments: Record<string, string>,
+    nextFavoriteEpisodes?: Set<number>,
   ) => {
     if (!activeTemplateItem || activeTemplateItem.type !== "episode") {
       return;
@@ -1307,10 +1321,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     const nextStartEpisode = parseEpisodeInputValue(nextStartValue);
     const nextLastEpisode = parseEpisodeInputValue(nextLastValue);
     const hasValidRange = nextStartEpisode !== null && nextLastEpisode !== null && nextLastEpisode >= nextStartEpisode;
-    const filteredWatchedEpisodes = hasValidRange
-      ? Array.from(nextWatchedEpisodes).filter((episodeNumber) => episodeNumber >= nextStartEpisode && episodeNumber <= nextLastEpisode)
-      : [];
+    const filteredWatchedEpisodes = hasValidRange ? filterEpisodeNumbersByRange(nextWatchedEpisodes, nextStartEpisode, nextLastEpisode) : [];
     const filteredEpisodeComments = hasValidRange ? filterEpisodeCommentsByRange(nextEpisodeComments, nextStartEpisode, nextLastEpisode) : {};
+    const currentFavoriteEpisodes = nextFavoriteEpisodes ?? new Set(activeTemplateItem.config.favoriteEpisodes);
+    const filteredFavoriteEpisodes = hasValidRange ? filterEpisodeNumbersByRange(currentFavoriteEpisodes, nextStartEpisode, nextLastEpisode) : [];
 
     const nextTemplateItems = templateItems.map((item) => {
       if (item.id !== activeTemplateItem.id || item.type !== "episode") {
@@ -1324,6 +1338,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           startEpisode: nextStartEpisode,
           endEpisode: hasValidRange ? nextLastEpisode : null,
           watchedEpisodes: filteredWatchedEpisodes,
+          favoriteEpisodes: filteredFavoriteEpisodes,
           episodeComments: filteredEpisodeComments,
         },
       };
@@ -1407,7 +1422,19 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       next.delete(episodeNumber);
     }
 
-    void updateEpisodeTemplateItem(startEpisode, lastEpisode, next, episodeComments);
+    void updateEpisodeTemplateItem(startEpisode, lastEpisode, next, episodeComments, favoriteEpisodes);
+  };
+
+  const handleEpisodeFavoriteToggle = (episodeNumber: number) => {
+    const nextFavoriteEpisodes = new Set(favoriteEpisodes);
+
+    if (nextFavoriteEpisodes.has(episodeNumber)) {
+      nextFavoriteEpisodes.delete(episodeNumber);
+    } else {
+      nextFavoriteEpisodes.add(episodeNumber);
+    }
+
+    void updateEpisodeTemplateItem(startEpisode, lastEpisode, watchedEpisodes, episodeComments, nextFavoriteEpisodes);
   };
 
   const closeEpisodeCommentDialog = () => {
@@ -1441,7 +1468,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
         delete nextEpisodeComments[commentKey];
       }
 
-      await updateEpisodeTemplateItem(startEpisode, lastEpisode, watchedEpisodes, nextEpisodeComments);
+      await updateEpisodeTemplateItem(startEpisode, lastEpisode, watchedEpisodes, nextEpisodeComments, favoriteEpisodes);
       closeEpisodeCommentDialog();
       return;
     }
@@ -1475,6 +1502,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       episodeEndValue,
       new Set(episodeItem.config.watchedEpisodes),
       nextEpisodeComments,
+      new Set(episodeItem.config.favoriteEpisodes),
     );
     closeEpisodeCommentDialog();
   };
@@ -1771,7 +1799,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         min={0}
                         step={1}
                         value={startEpisode}
-                        onChange={(event) => void updateEpisodeTemplateItem(event.target.value, lastEpisode, watchedEpisodes, episodeComments)}
+                        onChange={(event) => void updateEpisodeTemplateItem(event.target.value, lastEpisode, watchedEpisodes, episodeComments, favoriteEpisodes)}
                         className="w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder="Start"
                       />
@@ -1781,7 +1809,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         min={0}
                         step={1}
                         value={lastEpisode}
-                        onChange={(event) => void updateEpisodeTemplateItem(startEpisode, event.target.value, watchedEpisodes, episodeComments)}
+                        onChange={(event) => void updateEpisodeTemplateItem(startEpisode, event.target.value, watchedEpisodes, episodeComments, favoriteEpisodes)}
                         className="w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder="End"
                       />
@@ -1823,7 +1851,21 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                 className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                               />
                               <span>{episodeNumber}</span>
-                              {(episodeComments[String(episodeNumber)] ?? "").trim().length > 0 ? <CommentIcon /> : null}
+                              <div className="ml-auto flex items-center gap-2">
+                                {(episodeComments[String(episodeNumber)] ?? "").trim().length > 0 ? <CommentIcon /> : null}
+                                <button
+                                  type="button"
+                                  className="text-xl leading-none text-zinc-400 transition hover:text-amber-500"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleEpisodeFavoriteToggle(episodeNumber);
+                                  }}
+                                  aria-label={`Toggle favorite for episode ${episodeNumber}`}
+                                  title={favoriteEpisodes.has(episodeNumber) ? "Remove favorite" : "Mark as favorite"}
+                                >
+                                  {favoriteEpisodes.has(episodeNumber) ? "★" : "☆"}
+                                </button>
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -2071,6 +2113,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                 const episodeHasValidRange = episodeStart !== null && episodeEnd !== null && episodeEnd >= episodeStart;
                 const episodeNumbers = episodeHasValidRange ? Array.from({ length: episodeEnd - episodeStart + 1 }, (_, index) => episodeStart + index) : [];
                 const checkedEpisodes = new Set(item.config.watchedEpisodes);
+                const favoriteEpisodeSet = new Set(item.config.favoriteEpisodes);
                 const checklistEpisodeComments = item.config.episodeComments;
                 const currentEpisodeLabel = item.config.label.trim() || item.name;
                 const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
@@ -2165,13 +2208,43 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                       nextCheckedEpisodes.delete(episodeNumber);
                                     }
 
-                                    void updateSelectedEpisodeItemState(item.id, item.config.label, episodeStartValue, episodeEndValue, nextCheckedEpisodes);
+                                    void updateSelectedEpisodeItemState(item.id, item.config.label, episodeStartValue, episodeEndValue, nextCheckedEpisodes, checklistEpisodeComments, favoriteEpisodeSet);
                                   }}
                                   aria-label={`Mark episode ${episodeNumber} watched`}
                                   className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                                 />
                                 <span>{episodeNumber}</span>
-                                {(checklistEpisodeComments[String(episodeNumber)] ?? "").trim().length > 0 ? <CommentIcon /> : null}
+                                <div className="ml-auto flex items-center gap-2">
+                                  {(checklistEpisodeComments[String(episodeNumber)] ?? "").trim().length > 0 ? <CommentIcon /> : null}
+                                  <button
+                                    type="button"
+                                    className="text-xl leading-none text-zinc-400 transition hover:text-amber-500"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      const nextFavoriteEpisodes = new Set(favoriteEpisodeSet);
+
+                                      if (nextFavoriteEpisodes.has(episodeNumber)) {
+                                        nextFavoriteEpisodes.delete(episodeNumber);
+                                      } else {
+                                        nextFavoriteEpisodes.add(episodeNumber);
+                                      }
+
+                                      void updateSelectedEpisodeItemState(
+                                        item.id,
+                                        item.config.label,
+                                        episodeStartValue,
+                                        episodeEndValue,
+                                        checkedEpisodes,
+                                        checklistEpisodeComments,
+                                        nextFavoriteEpisodes,
+                                      );
+                                    }}
+                                    aria-label={`Toggle favorite for episode ${episodeNumber}`}
+                                    title={favoriteEpisodeSet.has(episodeNumber) ? "Remove favorite" : "Mark as favorite"}
+                                  >
+                                    {favoriteEpisodeSet.has(episodeNumber) ? "★" : "☆"}
+                                  </button>
+                                </div>
                               </div>
                             </li>
                           ))}

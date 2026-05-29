@@ -44,6 +44,7 @@ export type EpisodeTemplateItemDefinition = {
     startEpisode: number | null;
     endEpisode: number | null;
     watchedEpisodes: number[];
+    favoriteEpisodes: number[];
     episodeComments: Record<string, string>;
   };
 };
@@ -79,6 +80,7 @@ type EpisodeTemplateItemConfigInput = {
   startEpisode?: unknown;
   endEpisode?: unknown;
   watchedEpisodes?: unknown;
+  favoriteEpisodes?: unknown;
   episodeComments?: unknown;
 };
 
@@ -99,6 +101,7 @@ const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
       startEpisode: null,
       endEpisode: null,
       watchedEpisodes: [],
+      favoriteEpisodes: [],
       episodeComments: {},
     },
   },
@@ -160,6 +163,7 @@ function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItem
       config: {
         ...item.config,
         watchedEpisodes: [...item.config.watchedEpisodes],
+        favoriteEpisodes: [...item.config.favoriteEpisodes],
         episodeComments: { ...item.config.episodeComments },
       },
     };
@@ -260,6 +264,9 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
     const watchedEpisodes = Array.isArray(config.watchedEpisodes)
       ? config.watchedEpisodes.filter((episode: unknown): episode is number => typeof episode === "number" && Number.isInteger(episode) && episode >= 0)
       : [];
+    const favoriteEpisodes = Array.isArray(config.favoriteEpisodes)
+      ? config.favoriteEpisodes.filter((episode: unknown): episode is number => typeof episode === "number" && Number.isInteger(episode) && episode >= 0)
+      : [];
     const episodeComments = normalizeEpisodeComments(config.episodeComments);
 
     return {
@@ -271,6 +278,7 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
         startEpisode,
         endEpisode,
         watchedEpisodes,
+        favoriteEpisodes,
         episodeComments,
       },
     };
