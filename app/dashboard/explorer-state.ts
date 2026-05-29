@@ -1,6 +1,6 @@
 export type ExplorerNodeKind = "folder" | "item";
 
-export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "setting" | "template";
+export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template";
 export type TemplateItemType = "episode" | "textbox" | "textarea";
 
 const SETTING_NODE_ID = "setting";
@@ -89,7 +89,15 @@ type TextboxTemplateItemConfigInput = {
   value?: unknown;
 };
 
-const DEFAULT_TEMPLATES: TemplateDefinition[] = [{ id: "template-drama", name: "Drama", itemIds: [], itemStates: [] }];
+const DEFAULT_TEMPLATES: TemplateDefinition[] = [
+  { id: "template-music", name: "Music", itemIds: [], itemStates: [] },
+  { id: "template-game", name: "Game", itemIds: [], itemStates: [] },
+  { id: "template-comic", name: "Comic", itemIds: [], itemStates: [] },
+  { id: "template-drama", name: "Drama", itemIds: [], itemStates: [] },
+  { id: "template-movie", name: "Movie", itemIds: [], itemStates: [] },
+  { id: "template-book", name: "Book", itemIds: [], itemStates: [] },
+  { id: "template-anime", name: "Anime", itemIds: [], itemStates: [] },
+];
 
 const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
   {
@@ -127,26 +135,58 @@ const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
 
 export const DEFAULT_EXPLORER_STATE: ExplorerState = {
   nodes: [
-    { id: "music", name: "Music", kind: "item", iconKey: "music" },
-    { id: "game", name: "Game", kind: "item", iconKey: "game" },
-    { id: "comic", name: "Comic", kind: "item", iconKey: "comic" },
+    { id: "music", name: "Music", kind: "folder", iconKey: "music", children: [] },
+    { id: "game", name: "Game", kind: "folder", iconKey: "game", children: [] },
+    { id: "comic", name: "Comic", kind: "folder", iconKey: "comic", children: [] },
     {
       id: "drama",
       name: "Drama",
       kind: "folder",
+      iconKey: "drama",
       children: [
         { id: "japan", name: "Japan", kind: "folder", children: [] },
         { id: "korea", name: "Korea", kind: "folder", children: [] },
       ],
     },
-    { id: "movie", name: "Movie", kind: "item", iconKey: "movie" },
-    { id: "book", name: "Book", kind: "item", iconKey: "book" },
-    { id: "anime", name: "Anime", kind: "item", iconKey: "anime" },
+    { id: "movie", name: "Movie", kind: "folder", iconKey: "movie", children: [] },
+    { id: "book", name: "Book", kind: "folder", iconKey: "book", children: [] },
+    { id: "anime", name: "Anime", kind: "folder", iconKey: "anime", children: [] },
     SETTING_NODE,
   ],
   templates: DEFAULT_TEMPLATES,
   templateItems: DEFAULT_TEMPLATE_ITEMS,
 };
+
+const PARENT_NODE_ICON_KEYS: Record<string, ExplorerIconKey> = {
+  music: "music",
+  game: "game",
+  comic: "comic",
+  drama: "drama",
+  movie: "movie",
+  book: "book",
+  anime: "anime",
+};
+
+const CATEGORY_PARENT_NODE_IDS = new Set(Object.keys(PARENT_NODE_ICON_KEYS));
+
+function normalizeParentCategoryNodes(nodes: ExplorerNode[]): ExplorerNode[] {
+  return nodes.map((node) => {
+    const nextChildren = node.children ? normalizeParentCategoryNodes(node.children) : node.children;
+
+    if (!CATEGORY_PARENT_NODE_IDS.has(node.id)) {
+      return {
+        ...node,
+        children: nextChildren,
+      };
+    }
+
+    return {
+      ...node,
+      kind: "folder",
+      children: nextChildren ?? [],
+    };
+  });
+}
 
 function cloneDefaultTemplates(): TemplateDefinition[] {
   return DEFAULT_TEMPLATES.map((template) => ({
@@ -212,14 +252,17 @@ function normalizeNode(input: unknown): ExplorerNode | null {
     ? source.children.map((child) => normalizeNode(child)).filter((child): child is ExplorerNode => Boolean(child))
     : [];
 
+  const forceFolder = CATEGORY_PARENT_NODE_IDS.has(id);
+  const forcedIconKey = PARENT_NODE_ICON_KEYS[id];
+
   return {
     id,
     name,
-    kind,
-    iconKey,
+    kind: forceFolder ? "folder" : kind,
+    iconKey: forcedIconKey ?? iconKey,
     templateId,
     templateState: normalizeTemplateInstanceState(source.templateState),
-    children: kind === "folder" ? children : [],
+    children: forceFolder || kind === "folder" ? children : [],
   };
 }
 
@@ -367,9 +410,11 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     };
   }
 
-  const nodes = input.nodes
+  const nodes = normalizeParentCategoryNodes(
+    input.nodes
     .map((node) => normalizeNode(node))
-    .filter((node): node is ExplorerNode => Boolean(node));
+    .filter((node): node is ExplorerNode => Boolean(node))
+  );
 
   if (nodes.length === 0) {
     return {

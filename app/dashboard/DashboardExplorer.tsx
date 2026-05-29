@@ -108,6 +108,17 @@ function ItemIcon({ iconKey }: { iconKey?: ExplorerIconKey }) {
     );
   }
 
+  if (iconKey === "drama") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 7h16v10H4z" />
+        <path d="M8 7l2 10" />
+        <path d="M12 7l2 10" />
+        <path d="M16 7l-2 10" />
+      </svg>
+    );
+  }
+
   if (iconKey === "setting") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -700,7 +711,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     const targetNode = findNodeById(treeNodes, menu.targetId);
 
-    if (!targetNode) {
+    if (!targetNode || targetNode.kind !== "folder") {
       return;
     }
 
@@ -711,15 +722,14 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
 
     const newItem = createTemplateBoundItem(template, templateItems);
-    const nextNodes =
-      targetNode.kind === "folder"
-        ? addChildItem(treeNodes, targetNode.id, newItem)
-        : (() => {
-            const insertResult = insertAfterNode(treeNodes, targetNode.id, newItem);
-            return insertResult.inserted ? insertResult.nodes : [...treeNodes, newItem];
-          })();
+    const nextNodes = addChildItem(treeNodes, targetNode.id, newItem);
 
     void persistTree(nextNodes);
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      next.add(targetNode.id);
+      return next;
+    });
     setMenu((current) => ({ ...current, open: false, targetId: null }));
     setCreateOpen(false);
     setSelectedNodeId(newItem.id);
@@ -730,6 +740,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const createFolder = () => {
     const targetId = menu.targetId;
     const targetNode = targetId ? findNodeById(treeNodes, targetId) : null;
+    if (targetNode && targetNode.kind !== "folder") {
+      return;
+    }
+
     const parentId = targetNode ? targetId : null;
     const newFolderId = createNodeId();
     const newFolderName = "New Folder";
@@ -1565,7 +1579,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         }}
                       >
                         <span className="text-zinc-500">{hasChildren ? (isExpanded ? "▾" : "▸") : ""}</span>
-                        {isFolder ? <FolderIcon open={isExpanded} /> : <ItemIcon iconKey={currentNode.iconKey} />}
+                        {currentNode.iconKey ? <ItemIcon iconKey={currentNode.iconKey} /> : <FolderIcon open={isExpanded} />}
                         {isEditing ? (
                           <input
                             autoFocus
@@ -2323,7 +2337,19 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
             {createOpen ? (
               <div className="absolute left-full top-0 ml-1 min-w-40 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl">
-                <button type="button" className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={createFolder}>
+                <button
+                  type="button"
+                  className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                  onClick={createFolder}
+                  disabled={(() => {
+                    if (!menu.targetId) {
+                      return false;
+                    }
+
+                    const targetNode = findNodeById(treeNodes, menu.targetId);
+                    return !targetNode || targetNode.kind !== "folder";
+                  })()}
+                >
                   <FolderIcon />
                   <span className="ml-2">Folder</span>
                 </button>
@@ -2331,7 +2357,18 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   type="button"
                   className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                   onClick={createTemplateItem}
-                  disabled={!menu.targetId || !findNodeById(treeNodes, menu.targetId) || !findTemplateForNode(treeNodes, menu.targetId, templates)}
+                  disabled={(() => {
+                    if (!menu.targetId) {
+                      return true;
+                    }
+
+                    const targetNode = findNodeById(treeNodes, menu.targetId);
+                    if (!targetNode || targetNode.kind !== "folder") {
+                      return true;
+                    }
+
+                    return !findTemplateForNode(treeNodes, menu.targetId, templates);
+                  })()}
                 >
                   <ItemIcon iconKey="template" />
                   <span className="ml-2">Item</span>
