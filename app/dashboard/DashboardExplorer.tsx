@@ -459,6 +459,26 @@ function updateNodeTemplateState(nodes: ExplorerNode[], nodeId: string, nextTemp
   });
 }
 
+function clearTemplateBinding(nodes: ExplorerNode[], templateId: string): ExplorerNode[] {
+  return nodes.map((node) => {
+    const nextChildren = node.children && node.children.length > 0 ? clearTemplateBinding(node.children, templateId) : node.children;
+
+    if (node.templateId === templateId) {
+      return {
+        ...node,
+        templateId: undefined,
+        templateState: undefined,
+        children: nextChildren,
+      };
+    }
+
+    return {
+      ...node,
+      children: nextChildren,
+    };
+  });
+}
+
 type DashboardExplorerProps = {
   initialState: ExplorerState;
 };
@@ -475,6 +495,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const [templateDraftEntries, setTemplateDraftEntries] = useState<TemplateDraftEntry[]>([]);
   const [templateDraftDirty, setTemplateDraftDirty] = useState(false);
   const [templateAddMenuOpen, setTemplateAddMenuOpen] = useState(false);
+  const [templateNameDraft, setTemplateNameDraft] = useState("");
   const [selectedTemplateAddMenuOpen, setSelectedTemplateAddMenuOpen] = useState(false);
   const [selectedTemplateEditingLabelItemId, setSelectedTemplateEditingLabelItemId] = useState<string | null>(null);
   const [selectedTemplateEditingLabelValue, setSelectedTemplateEditingLabelValue] = useState("");
@@ -821,9 +842,50 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setTemplateDraftEntries([]);
     setTemplateDraftDirty(false);
     setTemplateAddMenuOpen(false);
+    setTemplateNameDraft("");
     setSelectedTemplateAddMenuOpen(false);
     setSelectedTemplateEditingLabelItemId(null);
     setSelectedTemplateEditingLabelValue("");
+  };
+
+  const commitTemplateName = async () => {
+    if (!activeTemplateId) {
+      return;
+    }
+
+    const nextName = templateNameDraft.trim() || "Untitled Template";
+    const currentTemplate = templates.find((template) => template.id === activeTemplateId);
+
+    if (!currentTemplate) {
+      return;
+    }
+
+    if (currentTemplate.name === nextName) {
+      setTemplateNameDraft(nextName);
+      return;
+    }
+
+    const nextTemplates = templates.map((template) => (
+      template.id === activeTemplateId
+        ? { ...template, name: nextName }
+        : template
+    ));
+
+    await persistDashboardState({ nextTemplates });
+    setTemplateNameDraft(nextName);
+  };
+
+  const handleTemplateNameKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitTemplateName();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setTemplateNameDraft(activeTemplate?.name ?? "");
+    }
   };
 
   const startSelectedTemplateLabelEdit = (itemId: string, currentLabel: string) => {
@@ -956,6 +1018,62 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
   };
 
+  const createTemplate = async () => {
+    const baseName = "New Template";
+    const existingNames = new Set(templates.map((template) => template.name));
+
+    let nextName = baseName;
+    let suffix = 1;
+
+    while (existingNames.has(nextName)) {
+      suffix += 1;
+      nextName = `${baseName} ${suffix}`;
+    }
+
+    const newTemplate: TemplateDefinition = {
+      id: createNodeId(),
+      name: nextName,
+      itemIds: [],
+      itemStates: [],
+    };
+
+    const nextTemplates = [...templates, newTemplate];
+    await persistDashboardState({ nextTemplates });
+
+    setActiveTemplateId(newTemplate.id);
+    setTemplateNameDraft(newTemplate.name);
+    setTemplateDraftEntries([]);
+    setTemplateDraftDirty(false);
+    setTemplateAddMenuOpen(false);
+    setSettingView("template-editor");
+  };
+
+  const deleteActiveTemplate = async () => {
+    if (!activeTemplateId) {
+      return;
+    }
+
+    const currentTemplate = templates.find((template) => template.id === activeTemplateId);
+    const templateName = currentTemplate?.name ?? "this template";
+    const shouldDelete = window.confirm(`Delete \"${templateName}\"?`);
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    const nextTemplates = templates.filter((template) => template.id !== activeTemplateId);
+    const nextNodes = clearTemplateBinding(treeNodes, activeTemplateId);
+
+    await persistDashboardState({ nextNodes, nextTemplates });
+
+    setActiveTemplateId(null);
+    setTemplateDraftEntries([]);
+    setTemplateDraftDirty(false);
+    setTemplateAddMenuOpen(false);
+    setTemplateNameDraft("");
+    setSettingView("overview");
+  };
+
   const confirmRemoveSelectedTemplateItem = (itemId: string, label: string) => {
     const displayLabel = label.trim() || "item";
     const shouldRemove = window.confirm(`Delete \"${displayLabel}\"?`);
@@ -975,6 +1093,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
 
     setActiveTemplateId(template.id);
+    setTemplateNameDraft(template.name);
     setTemplateDraftEntries(template.itemStates.map((itemState) => ({ draftId: createNodeId(), itemState: cloneTemplateItemDefinition(itemState) })));
     setTemplateDraftDirty(false);
     setTemplateAddMenuOpen(false);
@@ -1329,11 +1448,12 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   </div>
 
                   <div className="flex flex-wrap gap-3">
-                    <button type="button" className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100">
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                      onClick={() => void createTemplate()}
+                    >
                       Create template
-                    </button>
-                    <button type="button" className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100">
-                      Create template item
                     </button>
                   </div>
 
@@ -1376,14 +1496,31 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
               ) : settingView === "template-editor" ? (
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold text-zinc-800">{activeTemplate?.name ?? "Template"}</h2>
-                    <button
-                      type="button"
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-                      onClick={() => setSettingView("overview")}
-                    >
-                      Back
-                    </button>
+                    <input
+                      type="text"
+                      value={templateNameDraft}
+                      onChange={(event) => setTemplateNameDraft(event.target.value)}
+                      onBlur={() => void commitTemplateName()}
+                      onKeyDown={handleTemplateNameKeyDown}
+                      className="w-full max-w-md rounded-md border border-zinc-300 bg-white px-3 py-2 text-xl font-semibold text-zinc-800 outline-none focus:border-zinc-400"
+                      placeholder="Template name"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-50"
+                        onClick={() => void deleteActiveTemplate()}
+                      >
+                        Delete template
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                        onClick={() => setSettingView("overview")}
+                      >
+                        Back
+                      </button>
+                    </div>
                   </div>
 
                   <section className="rounded-lg border border-zinc-200 p-4">
