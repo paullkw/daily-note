@@ -1,7 +1,7 @@
 export type ExplorerNodeKind = "folder" | "item";
 
 export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "setting" | "template";
-export type TemplateItemType = "episode" | "textbox";
+export type TemplateItemType = "episode" | "textbox" | "textarea";
 
 const SETTING_NODE_ID = "setting";
 
@@ -55,7 +55,17 @@ export type TextboxTemplateItemDefinition = {
   };
 };
 
-export type TemplateItemDefinition = EpisodeTemplateItemDefinition | TextboxTemplateItemDefinition;
+export type TextareaTemplateItemDefinition = {
+  id: string;
+  name: string;
+  type: "textarea";
+  config: {
+    label: string;
+    value: string;
+  };
+};
+
+export type TemplateItemDefinition = EpisodeTemplateItemDefinition | TextboxTemplateItemDefinition | TextareaTemplateItemDefinition;
 
 export type TemplateInstanceState = {
   itemStates: TemplateItemDefinition[];
@@ -89,6 +99,15 @@ const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
     id: "template-item-textbox",
     name: "Textbox",
     type: "textbox",
+    config: {
+      label: "Label",
+      value: "",
+    },
+  },
+  {
+    id: "template-item-textarea",
+    name: "Textarea",
+    type: "textarea",
     config: {
       label: "Label",
       value: "",
@@ -234,13 +253,13 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
     };
   }
 
-  if (source.type === "textbox") {
+  if (source.type === "textbox" || source.type === "textarea") {
     const config = (source.config ?? {}) as TextboxTemplateItemConfigInput;
 
     return {
       id,
       name,
-      type: "textbox",
+      type: source.type,
       config: {
         label: typeof config.label === "string" ? config.label : "Label",
         value: typeof config.value === "string" ? config.value : "",

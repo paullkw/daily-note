@@ -18,11 +18,15 @@ type MenuState = {
   targetId: string | null;
 };
 
+type TemplateDraftEntry = {
+  draftId: string;
+  itemId: string;
+};
+
 const SETTING_NODE_ID = "setting";
 const EPISODE_TEMPLATE_ITEM_NAME = "Episode";
-const TEXTBOX_TEMPLATE_ITEM_NAME = "Textbox";
 
-type SettingView = "overview" | "template-editor" | "episode-editor" | "textbox-editor";
+type SettingView = "overview" | "template-editor" | "episode-editor" | "textbox-editor" | "textarea-editor";
 
 function FolderIcon({ open }: { open?: boolean }) {
   return (
@@ -319,20 +323,26 @@ function collectFolderIds(nodes: ExplorerNode[]): Set<string> {
   return folderIds;
 }
 
-function reorderTemplateItemIds(itemIds: string[], draggedId: string, targetId: string): string[] {
+function reorderTemplateDraftEntries(entries: TemplateDraftEntry[], draggedId: string, targetId: string): TemplateDraftEntry[] {
   if (draggedId === targetId) {
-    return itemIds;
+    return entries;
   }
 
-  const nextItemIds = itemIds.filter((itemId) => itemId !== draggedId);
-  const targetIndex = nextItemIds.findIndex((itemId) => itemId === targetId);
+  const draggedEntry = entries.find((entry) => entry.draftId === draggedId);
+
+  if (!draggedEntry) {
+    return entries;
+  }
+
+  const nextEntries = entries.filter((entry) => entry.draftId !== draggedId);
+  const targetIndex = nextEntries.findIndex((entry) => entry.draftId === targetId);
 
   if (targetIndex < 0) {
-    return [...nextItemIds, draggedId];
+    return [...nextEntries, draggedEntry];
   }
 
-  nextItemIds.splice(targetIndex, 0, draggedId);
-  return nextItemIds;
+  nextEntries.splice(targetIndex, 0, draggedEntry);
+  return nextEntries;
 }
 
 function parseEpisodeInputValue(value: string): number | null {
@@ -451,7 +461,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const [settingView, setSettingView] = useState<SettingView>("overview");
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [activeTemplateItemId, setActiveTemplateItemId] = useState<string | null>(null);
-  const [templateDraftItemIds, setTemplateDraftItemIds] = useState<string[]>([]);
+  const [templateDraftEntries, setTemplateDraftEntries] = useState<TemplateDraftEntry[]>([]);
   const [templateDraftDirty, setTemplateDraftDirty] = useState(false);
   const [templateAddMenuOpen, setTemplateAddMenuOpen] = useState(false);
   const [draggingTemplateEditorItemId, setDraggingTemplateEditorItemId] = useState<string | null>(null);
@@ -465,12 +475,23 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
   const activeTemplate = activeTemplateId ? templates.find((template) => template.id === activeTemplateId) ?? null : null;
   const activeTemplateItem = activeTemplateItemId ? templateItems.find((item) => item.id === activeTemplateItemId) ?? null : null;
-  const draftTemplateItems = templateDraftItemIds
-    .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
-    .filter((item): item is TemplateItemDefinition => Boolean(item));
-  const availableTemplateItems = templateItems.filter((item) => !templateDraftItemIds.includes(item.id));
+  const draftTemplateItems = templateDraftEntries
+    .map((entry) => {
+      const item = templateItems.find((currentItem) => currentItem.id === entry.itemId) ?? null;
+
+      if (!item) {
+        return null;
+      }
+
+      return {
+        draftId: entry.draftId,
+        item,
+      };
+    })
+    .filter((entry): entry is { draftId: string; item: TemplateItemDefinition } => Boolean(entry));
   const episodeTemplateConfig = activeTemplateItem?.type === "episode" ? activeTemplateItem.config : null;
   const textboxTemplateConfig = activeTemplateItem?.type === "textbox" ? activeTemplateItem.config : null;
+  const textareaTemplateConfig = activeTemplateItem?.type === "textarea" ? activeTemplateItem.config : null;
   const episodeStartEpisode = episodeTemplateConfig?.startEpisode;
   const episodeEndEpisode = episodeTemplateConfig?.endEpisode;
   const startEpisode = episodeStartEpisode === null || episodeStartEpisode === undefined ? "" : String(episodeStartEpisode);
@@ -478,6 +499,8 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const watchedEpisodes = new Set(episodeTemplateConfig?.watchedEpisodes ?? []);
   const textboxLabel = textboxTemplateConfig?.label ?? "Label";
   const textboxValue = textboxTemplateConfig?.value ?? "";
+  const textareaLabel = textareaTemplateConfig?.label ?? "Label";
+  const textareaValue = textareaTemplateConfig?.value ?? "";
   const hasValidEpisodeRange =
     episodeStartEpisode !== null &&
     episodeStartEpisode !== undefined &&
@@ -789,7 +812,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setSettingView("overview");
     setActiveTemplateId(null);
     setActiveTemplateItemId(null);
-    setTemplateDraftItemIds([]);
+    setTemplateDraftEntries([]);
     setTemplateDraftDirty(false);
     setTemplateAddMenuOpen(false);
   };
@@ -844,7 +867,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
 
     setActiveTemplateId(template.id);
-    setTemplateDraftItemIds(template.itemIds);
+    setTemplateDraftEntries(template.itemIds.map((itemId) => ({ draftId: createNodeId(), itemId })));
     setTemplateDraftDirty(false);
     setTemplateAddMenuOpen(false);
     setSettingView("template-editor");
@@ -859,24 +882,30 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     setActiveTemplateItemId(item.id);
 
-    if (item.name === EPISODE_TEMPLATE_ITEM_NAME) {
+    if (item.type === "episode") {
       setSettingView("episode-editor");
       return;
     }
 
-    if (item.name === TEXTBOX_TEMPLATE_ITEM_NAME) {
+    if (item.type === "textbox") {
       setSettingView("textbox-editor");
+      return;
+    }
+
+    if (item.type === "textarea") {
+      setSettingView("textarea-editor");
     }
   };
 
   const addTemplateItemToDraft = (itemId: string) => {
-    if (templateDraftItemIds.includes(itemId)) {
-      return;
-    }
-
-    setTemplateDraftItemIds((current) => [...current, itemId]);
+    setTemplateDraftEntries((current) => [...current, { draftId: createNodeId(), itemId }]);
     setTemplateDraftDirty(true);
     setTemplateAddMenuOpen(false);
+  };
+
+  const removeTemplateDraftItem = (draftId: string) => {
+    setTemplateDraftEntries((current) => current.filter((entry) => entry.draftId !== draftId));
+    setTemplateDraftDirty(true);
   };
 
   const saveActiveTemplate = async () => {
@@ -884,25 +913,47 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       return;
     }
 
-    const nextTemplates = templates.map((template) => (template.id === activeTemplateId ? { ...template, itemIds: templateDraftItemIds } : template));
+    const nextTemplates = templates.map((template) => (
+      template.id === activeTemplateId
+        ? { ...template, itemIds: templateDraftEntries.map((entry) => entry.itemId) }
+        : template
+    ));
     await persistDashboardState({ nextTemplates });
     setTemplateDraftDirty(false);
   };
 
-  const handleTemplateEditorItemDragStart = (event: DragEvent<HTMLLIElement>, itemId: string) => {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", itemId);
-    setDraggingTemplateEditorItemId(itemId);
+  const updateTemplateEditorLabeledItemLabel = async (itemId: string, nextLabel: string) => {
+    const nextTemplateItems = templateItems.map((item) => {
+      if (item.id !== itemId || (item.type !== "textbox" && item.type !== "textarea")) {
+        return item;
+      }
+
+      return {
+        ...item,
+        config: {
+          ...item.config,
+          label: nextLabel,
+        },
+      };
+    });
+
+    await persistTemplateItems(nextTemplateItems);
   };
 
-  const handleTemplateEditorItemDragOver = (event: DragEvent<HTMLLIElement>, itemId: string) => {
+  const handleTemplateEditorItemDragStart = (event: DragEvent<HTMLLIElement>, draftId: string) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draftId);
+    setDraggingTemplateEditorItemId(draftId);
+  };
+
+  const handleTemplateEditorItemDragOver = (event: DragEvent<HTMLLIElement>, draftId: string) => {
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "move";
-    setTemplateEditorDropTargetId(itemId);
+    setTemplateEditorDropTargetId(draftId);
   };
 
-  const handleTemplateEditorItemDrop = (event: DragEvent<HTMLLIElement>, targetItemId: string) => {
+  const handleTemplateEditorItemDrop = (event: DragEvent<HTMLLIElement>, targetDraftId: string) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -910,11 +961,11 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setDraggingTemplateEditorItemId(null);
     setTemplateEditorDropTargetId(null);
 
-    if (!draggedItemId || draggedItemId === targetItemId) {
+    if (!draggedItemId || draggedItemId === targetDraftId) {
       return;
     }
 
-    setTemplateDraftItemIds((current) => reorderTemplateItemIds(current, draggedItemId, targetItemId));
+    setTemplateDraftEntries((current) => reorderTemplateDraftEntries(current, draggedItemId, targetDraftId));
     setTemplateDraftDirty(true);
   };
 
@@ -960,6 +1011,28 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     const nextTemplateItems = templateItems.map((item) => {
       if (item.id !== activeTemplateItem.id || item.type !== "textbox") {
+        return item;
+      }
+
+      return {
+        ...item,
+        config: {
+          label: nextLabel,
+          value: nextValue,
+        },
+      };
+    });
+
+    await persistTemplateItems(nextTemplateItems);
+  };
+
+  const updateTextareaTemplateItem = async (nextLabel: string, nextValue: string) => {
+    if (!activeTemplateItem || activeTemplateItem.type !== "textarea") {
+      return;
+    }
+
+    const nextTemplateItems = templateItems.map((item) => {
+      if (item.id !== activeTemplateItem.id || item.type !== "textarea") {
         return item;
       }
 
@@ -1147,14 +1220,14 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           type="button"
                           className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                           onClick={() => setTemplateAddMenuOpen((current) => !current)}
-                          disabled={availableTemplateItems.length === 0}
+                          disabled={templateItems.length === 0}
                         >
                           Add template item
                         </button>
 
                         {templateAddMenuOpen ? (
                           <div className="absolute right-0 top-full z-10 mt-2 min-w-44 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl">
-                            {availableTemplateItems.map((item) => (
+                            {templateItems.map((item) => (
                               <button
                                 key={item.id}
                                 type="button"
@@ -1171,23 +1244,44 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
                     {draftTemplateItems.length > 0 ? (
                       <ul className="mt-3 space-y-2">
-                        {draftTemplateItems.map((item) => {
-                          const isDropTarget = templateEditorDropTargetId === item.id;
+                        {draftTemplateItems.map(({ draftId, item }) => {
+                          const isDropTarget = templateEditorDropTargetId === draftId;
 
                           return (
                             <li
-                              key={item.id}
+                              key={draftId}
                               className={`rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 ${isDropTarget ? "bg-zinc-100" : ""}`}
                               draggable
-                              onDragStart={(event) => handleTemplateEditorItemDragStart(event, item.id)}
-                              onDragOver={(event) => handleTemplateEditorItemDragOver(event, item.id)}
-                              onDrop={(event) => handleTemplateEditorItemDrop(event, item.id)}
+                              onDragStart={(event) => handleTemplateEditorItemDragStart(event, draftId)}
+                              onDragOver={(event) => handleTemplateEditorItemDragOver(event, draftId)}
+                              onDrop={(event) => handleTemplateEditorItemDrop(event, draftId)}
                               onDragEnd={handleTemplateEditorDragEnd}
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <span>{item.name}</span>
-                                <span className="text-xs uppercase tracking-wide text-zinc-400">Drag to reorder</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs uppercase tracking-wide text-zinc-400">Drag to reorder</span>
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                                    onClick={() => removeTemplateDraftItem(draftId)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
+                              {item.type === "textbox" || item.type === "textarea" ? (
+                                <div className="mt-3">
+                                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Label</label>
+                                  <input
+                                    type="text"
+                                    value={item.config.label}
+                                    onChange={(event) => void updateTemplateEditorLabeledItemLabel(item.id, event.target.value)}
+                                    className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                                    placeholder="Label"
+                                  />
+                                </div>
+                              ) : null}
                             </li>
                           );
                         })}
@@ -1272,7 +1366,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     )}
                   </section>
                 </div>
-              ) : (
+              ) : settingView === "textbox-editor" ? (
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold text-zinc-800">Textbox template item</h2>
@@ -1310,6 +1404,43 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     />
                   </section>
                 </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-zinc-800">Textarea template item</h2>
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                      onClick={() => setSettingView("overview")}
+                    >
+                      Back
+                    </button>
+                  </div>
+
+                  <section className="rounded-lg border border-zinc-200 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Label</h3>
+                    <input
+                      type="text"
+                      value={textareaLabel}
+                      onChange={(event) => void updateTextareaTemplateItem(event.target.value, textareaValue)}
+                      className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                      placeholder="Label"
+                    />
+                  </section>
+
+                  <section className="rounded-lg border border-zinc-200 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Textarea</h3>
+                    <label className="mt-3 block text-sm font-medium text-zinc-700">
+                      {textareaLabel.trim() || "Label"}
+                    </label>
+                    <textarea
+                      value={textareaValue}
+                      onChange={(event) => void updateTextareaTemplateItem(textareaLabel, event.target.value)}
+                      className="mt-2 min-h-28 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                      placeholder="Enter text"
+                    />
+                  </section>
+                </div>
               )}
             </div>
           ) : selectedTemplateNode && selectedTemplate && selectedTemplateState ? (
@@ -1323,7 +1454,6 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                 if (item.type === "textbox") {
                   return (
                     <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">{item.name}</h3>
                       <label className="mt-3 block text-sm font-medium text-zinc-700">{item.config.label}</label>
                       <input
                         type="text"
@@ -1342,6 +1472,32 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           };
                         })}
                         className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                        placeholder={item.config.label}
+                      />
+                    </section>
+                  );
+                }
+
+                if (item.type === "textarea") {
+                  return (
+                    <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
+                      <label className="mt-3 block text-sm font-medium text-zinc-700">{item.config.label}</label>
+                      <textarea
+                        value={item.config.value}
+                        onChange={(event) => void updateSelectedTemplateItemState(item.id, (currentItem) => {
+                          if (currentItem.type !== "textarea") {
+                            return currentItem;
+                          }
+
+                          return {
+                            ...currentItem,
+                            config: {
+                              ...currentItem.config,
+                              value: event.target.value,
+                            },
+                          };
+                        })}
+                        className="mt-2 min-h-28 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder={item.config.label}
                       />
                     </section>
