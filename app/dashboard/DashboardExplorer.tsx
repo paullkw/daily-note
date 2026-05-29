@@ -138,6 +138,14 @@ function ItemIcon({ iconKey }: { iconKey?: ExplorerIconKey }) {
   return <FolderIcon />;
 }
 
+function CommentIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16v10H9l-4 4V6z" />
+    </svg>
+  );
+}
+
 function findNodeById(nodes: ExplorerNode[], nodeId: string): ExplorerNode | null {
   for (const node of nodes) {
     if (node.id === nodeId) {
@@ -311,6 +319,7 @@ function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItem
       config: {
         ...item.config,
         watchedEpisodes: [...item.config.watchedEpisodes],
+        episodeComments: { ...item.config.episodeComments },
       },
     };
   }
@@ -383,6 +392,21 @@ function parseEpisodeInputValue(value: string): number | null {
   }
 
   return parsed;
+}
+
+function filterEpisodeCommentsByRange(episodeComments: Record<string, string>, startEpisode: number | null, endEpisode: number | null): Record<string, string> {
+  if (startEpisode === null || endEpisode === null || endEpisode < startEpisode) {
+    return {};
+  }
+
+  const nextEntries = Object.entries(episodeComments)
+    .filter(([episodeNumber, comment]) => {
+      const parsedEpisodeNumber = Number(episodeNumber);
+      return Number.isInteger(parsedEpisodeNumber) && parsedEpisodeNumber >= startEpisode && parsedEpisodeNumber <= endEpisode && comment.trim().length > 0;
+    })
+    .map(([episodeNumber, comment]) => [episodeNumber, comment.trim()] as const);
+
+  return Object.fromEntries(nextEntries);
 }
 
 function findTemplateByName(templates: TemplateDefinition[], name: string): TemplateDefinition | null {
@@ -507,6 +531,19 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const [editingValue, setEditingValue] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [episodeCommentDialog, setEpisodeCommentDialog] = useState<{
+    open: boolean;
+    source: "template-item" | "template-instance";
+    itemId: string | null;
+    episodeNumber: number | null;
+    comment: string;
+  }>({
+    open: false,
+    source: "template-item",
+    itemId: null,
+    episodeNumber: null,
+    comment: "",
+  });
 
   const activeTemplate = activeTemplateId ? templates.find((template) => template.id === activeTemplateId) ?? null : null;
   const activeTemplateItem = activeTemplateItemId ? templateItems.find((item) => item.id === activeTemplateItemId) ?? null : null;
@@ -523,6 +560,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const startEpisode = episodeStartEpisode === null || episodeStartEpisode === undefined ? "" : String(episodeStartEpisode);
   const lastEpisode = episodeEndEpisode === null || episodeEndEpisode === undefined ? "" : String(episodeEndEpisode);
   const watchedEpisodes = new Set(episodeTemplateConfig?.watchedEpisodes ?? []);
+  const episodeComments = episodeTemplateConfig?.episodeComments ?? {};
   const textboxLabel = textboxTemplateConfig?.label ?? "Label";
   const textboxValue = textboxTemplateConfig?.value ?? "";
   const textareaLabel = textareaTemplateConfig?.label ?? "Label";
@@ -938,13 +976,23 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     await persistSelectedTemplateState({ itemStates: nextItemStates });
   };
 
-  const updateSelectedEpisodeItemState = async (itemId: string, nextLabel: string, nextStartValue: string, nextLastValue: string, nextWatchedEpisodes: Set<number>) => {
+  const updateSelectedEpisodeItemState = async (
+    itemId: string,
+    nextLabel: string,
+    nextStartValue: string,
+    nextLastValue: string,
+    nextWatchedEpisodes: Set<number>,
+    nextEpisodeComments?: Record<string, string>,
+  ) => {
     const nextStartEpisode = parseEpisodeInputValue(nextStartValue);
     const nextLastEpisode = parseEpisodeInputValue(nextLastValue);
     const hasValidRange = nextStartEpisode !== null && nextLastEpisode !== null && nextLastEpisode >= nextStartEpisode;
     const filteredWatchedEpisodes = hasValidRange
       ? Array.from(nextWatchedEpisodes).filter((episodeNumber) => episodeNumber >= nextStartEpisode && episodeNumber <= nextLastEpisode)
       : [];
+    const currentItem = selectedTemplateState?.itemStates.find((item) => item.id === itemId);
+    const currentEpisodeComments = nextEpisodeComments ?? (currentItem && currentItem.type === "episode" ? currentItem.config.episodeComments : {});
+    const filteredEpisodeComments = hasValidRange ? filterEpisodeCommentsByRange(currentEpisodeComments, nextStartEpisode, nextLastEpisode) : {};
 
     await updateSelectedTemplateItemState(itemId, (item) => {
       if (item.type !== "episode") {
@@ -958,6 +1006,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           startEpisode: nextStartEpisode,
           endEpisode: hasValidRange ? nextLastEpisode : null,
           watchedEpisodes: filteredWatchedEpisodes,
+          episodeComments: filteredEpisodeComments,
         },
       };
     });
@@ -1172,6 +1221,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
               startEpisode: currentItem.config.startEpisode,
               endEpisode: currentItem.config.endEpisode,
               watchedEpisodes: [...currentItem.config.watchedEpisodes],
+              episodeComments: { ...currentItem.config.episodeComments },
             },
           },
         };
@@ -1244,7 +1294,12 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setTemplateEditorDropTargetId(null);
   };
 
-  const updateEpisodeTemplateItem = async (nextStartValue: string, nextLastValue: string, nextWatchedEpisodes: Set<number>) => {
+  const updateEpisodeTemplateItem = async (
+    nextStartValue: string,
+    nextLastValue: string,
+    nextWatchedEpisodes: Set<number>,
+    nextEpisodeComments: Record<string, string>,
+  ) => {
     if (!activeTemplateItem || activeTemplateItem.type !== "episode") {
       return;
     }
@@ -1255,6 +1310,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     const filteredWatchedEpisodes = hasValidRange
       ? Array.from(nextWatchedEpisodes).filter((episodeNumber) => episodeNumber >= nextStartEpisode && episodeNumber <= nextLastEpisode)
       : [];
+    const filteredEpisodeComments = hasValidRange ? filterEpisodeCommentsByRange(nextEpisodeComments, nextStartEpisode, nextLastEpisode) : {};
 
     const nextTemplateItems = templateItems.map((item) => {
       if (item.id !== activeTemplateItem.id || item.type !== "episode") {
@@ -1268,6 +1324,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           startEpisode: nextStartEpisode,
           endEpisode: hasValidRange ? nextLastEpisode : null,
           watchedEpisodes: filteredWatchedEpisodes,
+          episodeComments: filteredEpisodeComments,
         },
       };
     });
@@ -1350,7 +1407,76 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       next.delete(episodeNumber);
     }
 
-    void updateEpisodeTemplateItem(startEpisode, lastEpisode, next);
+    void updateEpisodeTemplateItem(startEpisode, lastEpisode, next, episodeComments);
+  };
+
+  const closeEpisodeCommentDialog = () => {
+    setEpisodeCommentDialog({
+      open: false,
+      source: "template-item",
+      itemId: null,
+      episodeNumber: null,
+      comment: "",
+    });
+  };
+
+  const saveEpisodeComment = async () => {
+    if (!episodeCommentDialog.open || !episodeCommentDialog.itemId || episodeCommentDialog.episodeNumber === null) {
+      return;
+    }
+
+    const commentKey = String(episodeCommentDialog.episodeNumber);
+    const trimmedComment = episodeCommentDialog.comment.trim();
+
+    if (episodeCommentDialog.source === "template-item") {
+      if (!activeTemplateItem || activeTemplateItem.type !== "episode" || activeTemplateItem.id !== episodeCommentDialog.itemId) {
+        closeEpisodeCommentDialog();
+        return;
+      }
+
+      const nextEpisodeComments = { ...activeTemplateItem.config.episodeComments };
+      if (trimmedComment) {
+        nextEpisodeComments[commentKey] = trimmedComment;
+      } else {
+        delete nextEpisodeComments[commentKey];
+      }
+
+      await updateEpisodeTemplateItem(startEpisode, lastEpisode, watchedEpisodes, nextEpisodeComments);
+      closeEpisodeCommentDialog();
+      return;
+    }
+
+    if (!selectedTemplateState) {
+      closeEpisodeCommentDialog();
+      return;
+    }
+
+    const episodeItem = selectedTemplateState.itemStates.find((item) => item.id === episodeCommentDialog.itemId);
+
+    if (!episodeItem || episodeItem.type !== "episode") {
+      closeEpisodeCommentDialog();
+      return;
+    }
+
+    const nextEpisodeComments = { ...episodeItem.config.episodeComments };
+    if (trimmedComment) {
+      nextEpisodeComments[commentKey] = trimmedComment;
+    } else {
+      delete nextEpisodeComments[commentKey];
+    }
+
+    const episodeStartValue = episodeItem.config.startEpisode === null ? "" : String(episodeItem.config.startEpisode);
+    const episodeEndValue = episodeItem.config.endEpisode === null ? "" : String(episodeItem.config.endEpisode);
+
+    await updateSelectedEpisodeItemState(
+      episodeItem.id,
+      episodeItem.config.label,
+      episodeStartValue,
+      episodeEndValue,
+      new Set(episodeItem.config.watchedEpisodes),
+      nextEpisodeComments,
+    );
+    closeEpisodeCommentDialog();
   };
 
   return (
@@ -1645,7 +1771,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         min={0}
                         step={1}
                         value={startEpisode}
-                        onChange={(event) => void updateEpisodeTemplateItem(event.target.value, lastEpisode, watchedEpisodes)}
+                        onChange={(event) => void updateEpisodeTemplateItem(event.target.value, lastEpisode, watchedEpisodes, episodeComments)}
                         className="w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder="Start"
                       />
@@ -1655,7 +1781,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         min={0}
                         step={1}
                         value={lastEpisode}
-                        onChange={(event) => void updateEpisodeTemplateItem(startEpisode, event.target.value, watchedEpisodes)}
+                        onChange={(event) => void updateEpisodeTemplateItem(startEpisode, event.target.value, watchedEpisodes, episodeComments)}
                         className="w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
                         placeholder="End"
                       />
@@ -1670,16 +1796,35 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     {generatedEpisodes.length > 0 ? (
                       <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {generatedEpisodes.map((episodeNumber) => (
-                          <li key={episodeNumber} className="rounded-md bg-zinc-50 px-3 py-2">
-                            <label className="flex items-center gap-2 text-sm text-zinc-700">
+                          <li
+                            key={episodeNumber}
+                            className="rounded-md bg-zinc-50 px-3 py-2"
+                            onDoubleClick={() => {
+                              if (!activeTemplateItem || activeTemplateItem.type !== "episode") {
+                                return;
+                              }
+
+                              setEpisodeCommentDialog({
+                                open: true,
+                                source: "template-item",
+                                itemId: activeTemplateItem.id,
+                                episodeNumber,
+                                comment: episodeComments[String(episodeNumber)] ?? "",
+                              });
+                            }}
+                            title="Double click to add comment"
+                          >
+                            <div className="flex items-center gap-2 text-sm text-zinc-700">
                               <input
                                 type="checkbox"
                                 checked={watchedEpisodes.has(episodeNumber)}
                                 onChange={(event) => handleEpisodeCheckboxChange(episodeNumber, event.target.checked)}
+                                aria-label={`Mark episode ${episodeNumber} watched`}
                                 className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                               />
                               <span>{episodeNumber}</span>
-                            </label>
+                              {(episodeComments[String(episodeNumber)] ?? "").trim().length > 0 ? <CommentIcon /> : null}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -1926,6 +2071,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                 const episodeHasValidRange = episodeStart !== null && episodeEnd !== null && episodeEnd >= episodeStart;
                 const episodeNumbers = episodeHasValidRange ? Array.from({ length: episodeEnd - episodeStart + 1 }, (_, index) => episodeStart + index) : [];
                 const checkedEpisodes = new Set(item.config.watchedEpisodes);
+                const checklistEpisodeComments = item.config.episodeComments;
                 const currentEpisodeLabel = item.config.label.trim() || item.name;
                 const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
 
@@ -1992,8 +2138,21 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                       {episodeNumbers.length > 0 ? (
                         <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {episodeNumbers.map((episodeNumber) => (
-                            <li key={episodeNumber} className="rounded-md bg-zinc-50 px-3 py-2">
-                              <label className="flex items-center gap-2 text-sm text-zinc-700">
+                            <li
+                              key={episodeNumber}
+                              className="rounded-md bg-zinc-50 px-3 py-2"
+                              onDoubleClick={() => {
+                                setEpisodeCommentDialog({
+                                  open: true,
+                                  source: "template-instance",
+                                  itemId: item.id,
+                                  episodeNumber,
+                                  comment: checklistEpisodeComments[String(episodeNumber)] ?? "",
+                                });
+                              }}
+                              title="Double click to add comment"
+                            >
+                              <div className="flex items-center gap-2 text-sm text-zinc-700">
                                 <input
                                   type="checkbox"
                                   checked={checkedEpisodes.has(episodeNumber)}
@@ -2008,10 +2167,12 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
                                     void updateSelectedEpisodeItemState(item.id, item.config.label, episodeStartValue, episodeEndValue, nextCheckedEpisodes);
                                   }}
+                                  aria-label={`Mark episode ${episodeNumber} watched`}
                                   className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
                                 />
                                 <span>{episodeNumber}</span>
-                              </label>
+                                {(checklistEpisodeComments[String(episodeNumber)] ?? "").trim().length > 0 ? <CommentIcon /> : null}
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -2033,6 +2194,51 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
           ) : null}
         </section>
       </div>
+
+      {episodeCommentDialog.open ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/35 px-4" onClick={closeEpisodeCommentDialog}>
+          <div
+            className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-2xl"
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <h3 className="text-base font-semibold text-zinc-800">
+              Episode {episodeCommentDialog.episodeNumber} comment
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500">Enter a comment for this checklist item.</p>
+            <textarea
+              autoFocus
+              value={episodeCommentDialog.comment}
+              onChange={(event) =>
+                setEpisodeCommentDialog((current) => ({
+                  ...current,
+                  comment: event.target.value,
+                }))
+              }
+              rows={4}
+              className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+              placeholder="Write comment..."
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                onClick={closeEpisodeCommentDialog}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-zinc-800 bg-zinc-800 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+                onClick={() => void saveEpisodeComment()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {menu.open ? (
         <div className="fixed z-50 min-w-44 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y }}>

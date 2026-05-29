@@ -44,6 +44,7 @@ export type EpisodeTemplateItemDefinition = {
     startEpisode: number | null;
     endEpisode: number | null;
     watchedEpisodes: number[];
+    episodeComments: Record<string, string>;
   };
 };
 
@@ -78,6 +79,7 @@ type EpisodeTemplateItemConfigInput = {
   startEpisode?: unknown;
   endEpisode?: unknown;
   watchedEpisodes?: unknown;
+  episodeComments?: unknown;
 };
 
 type TextboxTemplateItemConfigInput = {
@@ -97,6 +99,7 @@ const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
       startEpisode: null,
       endEpisode: null,
       watchedEpisodes: [],
+      episodeComments: {},
     },
   },
   {
@@ -157,6 +160,7 @@ function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItem
       config: {
         ...item.config,
         watchedEpisodes: [...item.config.watchedEpisodes],
+        episodeComments: { ...item.config.episodeComments },
       },
     };
   }
@@ -256,6 +260,7 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
     const watchedEpisodes = Array.isArray(config.watchedEpisodes)
       ? config.watchedEpisodes.filter((episode: unknown): episode is number => typeof episode === "number" && Number.isInteger(episode) && episode >= 0)
       : [];
+    const episodeComments = normalizeEpisodeComments(config.episodeComments);
 
     return {
       id,
@@ -266,6 +271,7 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
         startEpisode,
         endEpisode,
         watchedEpisodes,
+        episodeComments,
       },
     };
   }
@@ -285,6 +291,30 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
   }
 
   return null;
+}
+
+function normalizeEpisodeComments(input: unknown): Record<string, string> {
+  if (!input || typeof input !== "object") {
+    return {};
+  }
+
+  const entries = Object.entries(input as Record<string, unknown>)
+    .flatMap(([key, value]) => {
+      if (typeof value !== "string") {
+        return [];
+      }
+
+      const parsedEpisode = Number(key);
+      const trimmedValue = value.trim();
+
+      if (!Number.isInteger(parsedEpisode) || parsedEpisode < 0 || trimmedValue.length === 0) {
+        return [];
+      }
+
+      return [[key, trimmedValue] as const];
+    });
+
+  return Object.fromEntries(entries);
 }
 
 function normalizeTemplateInstanceState(input: unknown): TemplateInstanceState | undefined {
