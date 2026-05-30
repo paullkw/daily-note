@@ -89,14 +89,138 @@ type TextboxTemplateItemConfigInput = {
   value?: unknown;
 };
 
+function createDefaultTemplateCommentItem(templateId: string): TemplateItemDefinition {
+  return {
+    id: `${templateId}-comment`,
+    name: "Textarea",
+    type: "textarea",
+    config: {
+      label: "Comment",
+      value: "",
+    },
+  };
+}
+
+function createDefaultTemplateEpisodeItem(templateId: string, label: string): TemplateItemDefinition {
+  const labelSegment = label.trim().toLowerCase().replace(/\s+/g, "-");
+
+  return {
+    id: `${templateId}-episode-${labelSegment}`,
+    name: "Episode",
+    type: "episode",
+    config: {
+      label,
+      startEpisode: null,
+      endEpisode: null,
+      watchedEpisodes: [],
+      favoriteEpisodes: [],
+      episodeComments: {},
+    },
+  };
+}
+
+function ensureTemplateHasDefaultCommentItem(template: TemplateDefinition): TemplateDefinition {
+  const targetTemplateIds = new Set([
+    "template-music",
+    "template-game",
+    "template-comic",
+    "template-drama",
+    "template-movie",
+    "template-book",
+    "template-anime",
+  ]);
+
+  if (!targetTemplateIds.has(template.id)) {
+    return template;
+  }
+
+  const hasCommentTextarea = template.itemStates.some((item) => item.type === "textarea" && item.config.label.trim().toLowerCase() === "comment");
+
+  if (hasCommentTextarea) {
+    return template;
+  }
+
+  const defaultCommentItem = createDefaultTemplateCommentItem(template.id);
+
+  return {
+    ...template,
+    itemIds: [...template.itemIds, defaultCommentItem.id],
+    itemStates: [...template.itemStates, defaultCommentItem],
+  };
+}
+
+function ensureDramaAnimeTemplateHasSeasonOneEpisode(template: TemplateDefinition): TemplateDefinition {
+  if (template.id !== "template-drama" && template.id !== "template-anime") {
+    return template;
+  }
+
+  const hasSeasonOneEpisode = template.itemStates.some((item) => item.type === "episode" && item.config.label.trim().toLowerCase() === "season 1");
+
+  if (hasSeasonOneEpisode) {
+    return template;
+  }
+
+  const seasonOneEpisodeItem = createDefaultTemplateEpisodeItem(template.id, "Season 1");
+
+  return {
+    ...template,
+    itemIds: [...template.itemIds, seasonOneEpisodeItem.id],
+    itemStates: [...template.itemStates, seasonOneEpisodeItem],
+  };
+}
+
+function ensureComicTemplateHasChapterEpisode(template: TemplateDefinition): TemplateDefinition {
+  if (template.id !== "template-comic") {
+    return template;
+  }
+
+  const hasChapterEpisode = template.itemStates.some((item) => item.type === "episode" && item.config.label.trim().toLowerCase() === "chapter");
+
+  if (hasChapterEpisode) {
+    return template;
+  }
+
+  const chapterEpisodeItem = createDefaultTemplateEpisodeItem(template.id, "Chapter");
+
+  return {
+    ...template,
+    itemIds: [...template.itemIds, chapterEpisodeItem.id],
+    itemStates: [...template.itemStates, chapterEpisodeItem],
+  };
+}
+
 const DEFAULT_TEMPLATES: TemplateDefinition[] = [
-  { id: "template-music", name: "Music", itemIds: [], itemStates: [] },
-  { id: "template-game", name: "Game", itemIds: [], itemStates: [] },
-  { id: "template-comic", name: "Comic", itemIds: [], itemStates: [] },
-  { id: "template-drama", name: "Drama", itemIds: [], itemStates: [] },
-  { id: "template-movie", name: "Movie", itemIds: [], itemStates: [] },
-  { id: "template-book", name: "Book", itemIds: [], itemStates: [] },
-  { id: "template-anime", name: "Anime", itemIds: [], itemStates: [] },
+  { id: "template-music", name: "Music", itemIds: ["template-music-comment"], itemStates: [createDefaultTemplateCommentItem("template-music")] },
+  { id: "template-game", name: "Game", itemIds: ["template-game-comment"], itemStates: [createDefaultTemplateCommentItem("template-game")] },
+  {
+    id: "template-comic",
+    name: "Comic",
+    itemIds: ["template-comic-comment", "template-comic-episode-chapter"],
+    itemStates: [
+      createDefaultTemplateCommentItem("template-comic"),
+      createDefaultTemplateEpisodeItem("template-comic", "Chapter"),
+    ],
+  },
+  {
+    id: "template-drama",
+    name: "Drama",
+    itemIds: ["template-drama-comment", "template-drama-episode-season-1"],
+    itemStates: [
+      createDefaultTemplateCommentItem("template-drama"),
+      createDefaultTemplateEpisodeItem("template-drama", "Season 1"),
+    ],
+  },
+  { id: "template-movie", name: "Movie", itemIds: ["template-movie-comment"], itemStates: [createDefaultTemplateCommentItem("template-movie")] },
+  { id: "template-book", name: "Book", itemIds: ["template-book-comment"], itemStates: [createDefaultTemplateCommentItem("template-book")] },
+  {
+    id: "template-anime",
+    name: "Anime",
+    itemIds: ["template-anime-comment", "template-anime-episode-season-1"],
+    itemStates: [
+      createDefaultTemplateCommentItem("template-anime"),
+      createDefaultTemplateEpisodeItem("template-anime", "Season 1"),
+    ],
+  },
 ];
 
 const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
@@ -457,7 +581,10 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
                   .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
                   .filter((item): item is TemplateItemDefinition => Boolean(item))
                   .map((item) => cloneTemplateItemDefinition(item)),
-        }))
+            }))
+                .map((template) => ensureTemplateHasDefaultCommentItem(template))
+                .map((template) => ensureComicTemplateHasChapterEpisode(template))
+                .map((template) => ensureDramaAnimeTemplateHasSeasonOneEpisode(template))
     : [];
 
   for (const defaultTemplate of cloneDefaultTemplates()) {
