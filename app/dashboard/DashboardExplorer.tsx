@@ -1203,6 +1203,34 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     }
   };
 
+  const moveSelectedTemplateItem = async (itemId: string, direction: "up" | "down") => {
+    if (!selectedTemplateState) {
+      return;
+    }
+
+    const currentIndex = selectedTemplateState.itemStates.findIndex((item) => item.id === itemId);
+
+    if (currentIndex < 0) {
+      return;
+    }
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+    if (targetIndex < 0 || targetIndex >= selectedTemplateState.itemStates.length) {
+      return;
+    }
+
+    const nextItemStates = [...selectedTemplateState.itemStates];
+    const [movedItem] = nextItemStates.splice(currentIndex, 1);
+
+    if (!movedItem) {
+      return;
+    }
+
+    nextItemStates.splice(targetIndex, 0, movedItem);
+    await persistSelectedTemplateState({ itemStates: nextItemStates });
+  };
+
   const createTemplate = async () => {
     const baseName = "New Template";
     const existingNames = new Set(templates.map((template) => template.name));
@@ -2186,7 +2214,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                 </div>
               </div>
 
-              {selectedTemplateState.itemStates.map((item) => {
+              {selectedTemplateState.itemStates.map((item, itemIndex) => {
+                const isTopItem = itemIndex === 0;
+                const isBottomItem = itemIndex === selectedTemplateState.itemStates.length - 1;
+
                 if (item.type === "textbox") {
                   const textboxItemLabel = item.config.label.trim() || item.name;
                   const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
@@ -2214,15 +2245,37 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                             {textboxItemLabel}
                           </label>
                         )}
-                        <button
-                          type="button"
-                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
-                          onClick={() => confirmRemoveSelectedTemplateItem(item.id, textboxItemLabel)}
-                          aria-label={`Remove ${textboxItemLabel}`}
-                          title="Remove"
-                        >
-                          ×
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            onClick={() => void moveSelectedTemplateItem(item.id, "up")}
+                            disabled={isTopItem}
+                            aria-label={`Move ${textboxItemLabel} up`}
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            onClick={() => void moveSelectedTemplateItem(item.id, "down")}
+                            disabled={isBottomItem}
+                            aria-label={`Move ${textboxItemLabel} down`}
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                            onClick={() => confirmRemoveSelectedTemplateItem(item.id, textboxItemLabel)}
+                            aria-label={`Remove ${textboxItemLabel}`}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                       <input
                         type="text"
@@ -2274,15 +2327,37 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                             {textareaItemLabel}
                           </label>
                         )}
-                        <button
-                          type="button"
-                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
-                          onClick={() => confirmRemoveSelectedTemplateItem(item.id, textareaItemLabel)}
-                          aria-label={`Remove ${textareaItemLabel}`}
-                          title="Remove"
-                        >
-                          ×
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            onClick={() => void moveSelectedTemplateItem(item.id, "up")}
+                            disabled={isTopItem}
+                            aria-label={`Move ${textareaItemLabel} up`}
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            onClick={() => void moveSelectedTemplateItem(item.id, "down")}
+                            disabled={isBottomItem}
+                            aria-label={`Move ${textareaItemLabel} down`}
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                            onClick={() => confirmRemoveSelectedTemplateItem(item.id, textareaItemLabel)}
+                            aria-label={`Remove ${textareaItemLabel}`}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                       <textarea
                         value={item.config.value}
@@ -2341,15 +2416,37 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           {currentEpisodeLabel}
                         </label>
                       )}
-                      <button
-                        type="button"
-                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
-                        onClick={() => confirmRemoveSelectedTemplateItem(item.id, currentEpisodeLabel)}
-                        aria-label={`Remove ${currentEpisodeLabel}`}
-                        title="Remove"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                          onClick={() => void moveSelectedTemplateItem(item.id, "up")}
+                          disabled={isTopItem}
+                          aria-label={`Move ${currentEpisodeLabel} up`}
+                          title="Move up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                          onClick={() => void moveSelectedTemplateItem(item.id, "down")}
+                          disabled={isBottomItem}
+                          aria-label={`Move ${currentEpisodeLabel} down`}
+                          title="Move down"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                          onClick={() => confirmRemoveSelectedTemplateItem(item.id, currentEpisodeLabel)}
+                          aria-label={`Remove ${currentEpisodeLabel}`}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-3 flex items-center gap-3">
                       <input
