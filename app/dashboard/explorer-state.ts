@@ -1,16 +1,32 @@
 export type ExplorerNodeKind = "folder" | "item";
 
-export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template";
+export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template" | "recycle";
 export type TemplateItemType = "episode" | "textbox" | "textarea";
 
 const SETTING_NODE_ID = "setting";
+const RECYCLE_BIN_NODE_ID = "recycle-bin";
 
-const SETTING_NODE: ExplorerNode = {
-  id: SETTING_NODE_ID,
-  name: "Setting",
-  kind: "item",
-  iconKey: "setting",
-};
+function createRecycleBinNode(): ExplorerNode {
+  return {
+    id: RECYCLE_BIN_NODE_ID,
+    name: "Recycle Bin",
+    kind: "folder",
+    iconKey: "recycle",
+    children: [],
+  };
+}
+
+function createSettingNode(): ExplorerNode {
+  return {
+    id: SETTING_NODE_ID,
+    name: "Setting",
+    kind: "item",
+    iconKey: "setting",
+    children: [],
+  };
+}
+
+const SETTING_NODE = createSettingNode();
 
 export type ExplorerNode = {
   id: string;
@@ -180,6 +196,7 @@ export const DEFAULT_EXPLORER_STATE: ExplorerState = {
     { id: "book", name: "Book", kind: "folder", iconKey: "book", children: [] },
     { id: "anime", name: "Anime", kind: "folder", iconKey: "anime", children: [] },
     SETTING_NODE,
+    createRecycleBinNode(),
   ],
   templates: DEFAULT_TEMPLATES,
   templateItems: DEFAULT_TEMPLATE_ITEMS,
@@ -214,6 +231,61 @@ function normalizeParentCategoryNodes(nodes: ExplorerNode[]): ExplorerNode[] {
       children: nextChildren ?? [],
     };
   });
+}
+
+function ensureTopLevelSettingAndRecycleBin(nodes: ExplorerNode[]): ExplorerNode[] {
+  const existingSettingNode = nodes.find((node) => node.id === SETTING_NODE_ID);
+  const existingRecycleBinNode = nodes.find((node) => node.id === RECYCLE_BIN_NODE_ID);
+
+  let recoveredRecycleChildren: ExplorerNode[] = [];
+
+  if (existingSettingNode?.children && existingSettingNode.children.length > 0) {
+    const nestedRecycleBinNode = existingSettingNode.children.find((child) => child.id === RECYCLE_BIN_NODE_ID);
+
+    if (nestedRecycleBinNode?.children && nestedRecycleBinNode.children.length > 0) {
+      recoveredRecycleChildren = nestedRecycleBinNode.children;
+    }
+  }
+
+  const nodesWithoutNestedRecycle = nodes.map((node) => {
+    if (node.id !== SETTING_NODE_ID) {
+      return node;
+    }
+
+    return {
+      ...node,
+      name: "Setting",
+      kind: "item",
+      iconKey: "setting",
+      children: [],
+    };
+  });
+
+  const nodesWithSetting = existingSettingNode
+    ? nodesWithoutNestedRecycle
+    : [...nodesWithoutNestedRecycle, createSettingNode()];
+
+  if (existingRecycleBinNode) {
+    return nodesWithSetting.map((node) => (
+      node.id === RECYCLE_BIN_NODE_ID
+        ? {
+            ...node,
+            name: "Recycle Bin",
+            kind: "folder",
+            iconKey: "recycle",
+            children: [...(node.children ?? []), ...recoveredRecycleChildren],
+          }
+        : node
+    ));
+  }
+
+  return [
+    ...nodesWithSetting,
+    {
+      ...createRecycleBinNode(),
+      children: recoveredRecycleChildren,
+    },
+  ];
 }
 
 function cloneDefaultTemplates(): TemplateDefinition[] {
@@ -271,7 +343,8 @@ function normalizeNode(input: unknown): ExplorerNode | null {
     source.iconKey === "book" ||
     source.iconKey === "anime" ||
     source.iconKey === "setting" ||
-    source.iconKey === "template"
+    source.iconKey === "template" ||
+    source.iconKey === "recycle"
       ? source.iconKey
       : undefined;
   const templateId = typeof source.templateId === "string" && source.templateId.trim() ? source.templateId.trim() : undefined;
@@ -452,9 +525,7 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     };
   }
 
-  if (!nodes.some((node) => node.id === SETTING_NODE_ID)) {
-    nodes.push(SETTING_NODE);
-  }
+  const nodesWithSetting = ensureTopLevelSettingAndRecycleBin(nodes);
 
   const templateItems = Array.isArray(input.templateItems)
     ? input.templateItems
@@ -495,5 +566,5 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     }
   }
 
-  return { nodes, templates, templateItems };
+  return { nodes: nodesWithSetting, templates, templateItems };
 }

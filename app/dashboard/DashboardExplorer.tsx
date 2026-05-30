@@ -24,6 +24,7 @@ type TemplateDraftEntry = {
 };
 
 const SETTING_NODE_ID = "setting";
+const RECYCLE_BIN_NODE_ID = "recycle-bin";
 const EPISODE_TEMPLATE_ITEM_NAME = "Episode";
 
 type SettingView = "overview" | "template-editor" | "episode-editor" | "textbox-editor" | "textarea-editor";
@@ -142,6 +143,18 @@ function ItemIcon({ iconKey }: { iconKey?: ExplorerIconKey }) {
         <path d="M9 8h6" />
         <path d="M9 12h6" />
         <path d="M9 16h3" />
+      </svg>
+    );
+  }
+
+  if (iconKey === "recycle") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 7h16" />
+        <path d="M9 7V5h6v2" />
+        <path d="M6 7l1 12h10l1-12" />
+        <path d="M10 11v5" />
+        <path d="M14 11v5" />
       </svg>
     );
   }
@@ -316,6 +329,16 @@ function containsNode(nodes: ExplorerNode[], nodeId: string): boolean {
   }
 
   return false;
+}
+
+function isNodeInsideRecycleBin(nodes: ExplorerNode[], nodeId: string): boolean {
+  const recycleBinNode = findNodeById(nodes, RECYCLE_BIN_NODE_ID);
+
+  if (!recycleBinNode || !recycleBinNode.children || recycleBinNode.children.length === 0) {
+    return false;
+  }
+
+  return containsNode(recycleBinNode.children, nodeId);
 }
 
 function createNodeId(): string {
@@ -788,10 +811,72 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       return;
     }
 
-    const nextNodes = removeNode(treeNodes, menu.targetId);
+    if (menu.targetId === SETTING_NODE_ID || menu.targetId === RECYCLE_BIN_NODE_ID) {
+      return;
+    }
+
+    if (isNodeInsideRecycleBin(treeNodes, menu.targetId)) {
+      const nextNodes = removeNode(treeNodes, menu.targetId);
+      void persistTree(nextNodes);
+      setMenu((current) => ({ ...current, open: false, targetId: null }));
+      setCreateOpen(false);
+
+      if (selectedNodeId === menu.targetId) {
+        setSelectedNodeId(RECYCLE_BIN_NODE_ID);
+      }
+
+      if (editingTargetId === menu.targetId) {
+        setEditingTargetId(null);
+        setEditingValue("");
+      }
+
+      return;
+    }
+
+    const detachedResult = detachNode(treeNodes, menu.targetId);
+
+    if (!detachedResult.detached) {
+      return;
+    }
+
+    const nextNodes = addNodeToFolder(detachedResult.nodes, RECYCLE_BIN_NODE_ID, detachedResult.detached);
+
+    void persistTree(nextNodes);
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      next.add(SETTING_NODE_ID);
+      next.add(RECYCLE_BIN_NODE_ID);
+      return next;
+    });
+    setMenu((current) => ({ ...current, open: false, targetId: null }));
+    setCreateOpen(false);
+    if (selectedNodeId === menu.targetId) {
+      setSelectedNodeId(RECYCLE_BIN_NODE_ID);
+    }
+    if (editingTargetId === menu.targetId) {
+      setEditingTargetId(null);
+      setEditingValue("");
+    }
+  };
+
+  const restoreSelected = () => {
+    if (!menu.targetId || !isNodeInsideRecycleBin(treeNodes, menu.targetId)) {
+      return;
+    }
+
+    const detachedResult = detachNode(treeNodes, menu.targetId);
+
+    if (!detachedResult.detached) {
+      return;
+    }
+
+    const nextNodes = [...detachedResult.nodes, detachedResult.detached];
+
     void persistTree(nextNodes);
     setMenu((current) => ({ ...current, open: false, targetId: null }));
     setCreateOpen(false);
+    setSelectedNodeId(detachedResult.detached.id);
+
     if (editingTargetId === menu.targetId) {
       setEditingTargetId(null);
       setEditingValue("");
@@ -805,7 +890,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   };
 
   const handleDragOverNode = (event: DragEvent<HTMLDivElement>, nodeId: string) => {
-    if (nodeId === SETTING_NODE_ID) {
+    if (nodeId === SETTING_NODE_ID || nodeId === RECYCLE_BIN_NODE_ID) {
       return;
     }
 
@@ -823,7 +908,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setDropTargetId(null);
     setDraggingId(null);
 
-    if (targetId === SETTING_NODE_ID) {
+    if (targetId === SETTING_NODE_ID || targetId === RECYCLE_BIN_NODE_ID) {
       return;
     }
 
@@ -889,6 +974,9 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const treeRowClass = "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100";
   const showSettingsPage = selectedNodeId === SETTING_NODE_ID;
   const selectedNode = selectedNodeId ? findNodeById(treeNodes, selectedNodeId) : null;
+  const menuTargetNode = menu.targetId ? findNodeById(treeNodes, menu.targetId) : null;
+  const menuTargetInsideRecycleBin = menu.targetId ? isNodeInsideRecycleBin(treeNodes, menu.targetId) : false;
+  const menuTargetProtected = menu.targetId === SETTING_NODE_ID || menu.targetId === RECYCLE_BIN_NODE_ID;
   const selectedTemplateNode = selectedNode && selectedNode.kind === "item" && selectedNode.templateId ? selectedNode : null;
   const selectedTemplate = selectedTemplateNode ? templates.find((template) => template.id === selectedTemplateNode.templateId) ?? null : null;
   const selectedTemplateState = selectedTemplateNode
@@ -1555,7 +1643,8 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   const hasChildren = childNodes.length > 0;
                   const isFolder = currentNode.kind === "folder";
                   const isExpanded = isFolder && expandedFolderIds.has(currentNode.id);
-                  const disableContextMenu = currentNode.id === SETTING_NODE_ID;
+                  const disableContextMenu = currentNode.id === SETTING_NODE_ID || currentNode.id === RECYCLE_BIN_NODE_ID;
+                  const disableDrag = currentNode.id === SETTING_NODE_ID || currentNode.id === RECYCLE_BIN_NODE_ID;
                   const isSelected = selectedNodeId === currentNode.id;
                   const isEditing = editingTargetId === currentNode.id;
                   const isDragSource = draggingId === currentNode.id;
@@ -1576,7 +1665,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
                           openMenuAt(event, "item", { id: currentNode.id });
                         }}
-                        draggable
+                        draggable={!disableDrag}
                         onDragStart={(event) => handleDragStart(event, currentNode.id)}
                         onDragOver={(event) => handleDragOverNode(event, currentNode.id)}
                         onDrop={(event) => handleDropNode(event, currentNode.id)}
@@ -2366,7 +2455,11 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     }
 
                     const targetNode = findNodeById(treeNodes, menu.targetId);
-                    return !targetNode || targetNode.kind !== "folder";
+                    if (!targetNode || targetNode.kind !== "folder") {
+                      return true;
+                    }
+
+                    return targetNode.id === RECYCLE_BIN_NODE_ID || isNodeInsideRecycleBin(treeNodes, targetNode.id);
                   })()}
                 >
                   <FolderIcon />
@@ -2386,6 +2479,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                       return true;
                     }
 
+                    if (targetNode.id === RECYCLE_BIN_NODE_ID || isNodeInsideRecycleBin(treeNodes, targetNode.id)) {
+                      return true;
+                    }
+
                     return !findTemplateForNode(treeNodes, menu.targetId, templates);
                   })()}
                 >
@@ -2401,18 +2498,29 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
             onMouseEnter={() => setCreateOpen(false)}
             onClick={startRename}
-            disabled={!menu.targetId}
+            disabled={!menu.targetId || menuTargetProtected}
           >
             Rename
           </button>
+
+          {menuTargetInsideRecycleBin && menuTargetNode ? (
+            <button
+              type="button"
+              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100"
+              onMouseEnter={() => setCreateOpen(false)}
+              onClick={restoreSelected}
+            >
+              Restore
+            </button>
+          ) : null}
 
           <button
             type="button"
             className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
             onClick={removeSelected}
-            disabled={!menu.targetId}
+            disabled={!menu.targetId || menuTargetProtected}
           >
-            Remove
+            {menuTargetInsideRecycleBin ? "Delete permanently" : "Remove"}
           </button>
         </div>
       ) : null}
