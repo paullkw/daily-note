@@ -1532,16 +1532,15 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl px-4 py-6 sm:px-6">
-      <div className="grid w-full grid-cols-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-[260px_1fr]">
+    <main className="min-h-screen w-full px-4 py-6 sm:px-6">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,72rem)_1fr]">
+        <div className="hidden lg:block" aria-hidden="true" />
+
+        <div className="flex min-h-0 flex-col">
+          <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-[260px_1fr]">
         <aside className="border-b border-zinc-200 bg-zinc-50 p-4 md:border-b-0 md:border-r" onContextMenu={(event) => openMenuAt(event, "root", null)}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h1 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Daily Note</h1>
-            <form action={logout}>
-              <button type="submit" className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100">
-                Logout
-              </button>
-            </form>
           </div>
 
           <nav aria-label="Dashboard tree view">
@@ -2290,6 +2289,16 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             </div>
           ) : null}
         </section>
+          </div>
+        </div>
+
+        <div className="flex items-start justify-end">
+          <form action={logout}>
+            <button type="submit" className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100">
+              Logout
+            </button>
+          </form>
+        </div>
       </div>
 
       {episodeCommentDialog.open ? (
