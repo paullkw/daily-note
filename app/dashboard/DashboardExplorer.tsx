@@ -1105,11 +1105,21 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       nextName = `${baseName} ${suffix}`;
     }
 
+    const defaultCommentItem: TemplateItemDefinition = {
+      id: createNodeId(),
+      name: "Textarea",
+      type: "textarea",
+      config: {
+        label: "Comment",
+        value: "",
+      },
+    };
+
     const newTemplate: TemplateDefinition = {
       id: createNodeId(),
       name: nextName,
-      itemIds: [],
-      itemStates: [],
+      itemIds: [defaultCommentItem.id],
+      itemStates: [defaultCommentItem],
     };
 
     const nextTemplates = [...templates, newTemplate];
@@ -1526,7 +1536,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       <div className="grid w-full grid-cols-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-[260px_1fr]">
         <aside className="border-b border-zinc-200 bg-zinc-50 p-4 md:border-b-0 md:border-r" onContextMenu={(event) => openMenuAt(event, "root", null)}>
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h1 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Explorer</h1>
+            <h1 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Daily Note</h1>
             <form action={logout}>
               <button type="submit" className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100">
                 Logout
@@ -2271,7 +2281,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                 );
               })}
             </div>
-          ) : selectedNode ? (
+          ) : selectedNode?.kind === "item" ? (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-800">{selectedNode.name}</h2>

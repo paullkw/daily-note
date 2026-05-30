@@ -89,14 +89,42 @@ type TextboxTemplateItemConfigInput = {
   value?: unknown;
 };
 
+function createDefaultTemplateCommentItem(templateId: string): TemplateItemDefinition {
+  return {
+    id: `${templateId}-comment`,
+    name: "Textarea",
+    type: "textarea",
+    config: {
+      label: "Comment",
+      value: "",
+    },
+  };
+}
+
+function ensureTemplateHasDefaultCommentItem(template: TemplateDefinition): TemplateDefinition {
+  const hasCommentTextarea = template.itemStates.some((item) => item.type === "textarea" && item.config.label.trim().toLowerCase() === "comment");
+
+  if (hasCommentTextarea) {
+    return template;
+  }
+
+  const defaultCommentItem = createDefaultTemplateCommentItem(template.id);
+
+  return {
+    ...template,
+    itemIds: [...template.itemIds, defaultCommentItem.id],
+    itemStates: [...template.itemStates, defaultCommentItem],
+  };
+}
+
 const DEFAULT_TEMPLATES: TemplateDefinition[] = [
-  { id: "template-music", name: "Music", itemIds: [], itemStates: [] },
-  { id: "template-game", name: "Game", itemIds: [], itemStates: [] },
-  { id: "template-comic", name: "Comic", itemIds: [], itemStates: [] },
-  { id: "template-drama", name: "Drama", itemIds: [], itemStates: [] },
-  { id: "template-movie", name: "Movie", itemIds: [], itemStates: [] },
-  { id: "template-book", name: "Book", itemIds: [], itemStates: [] },
-  { id: "template-anime", name: "Anime", itemIds: [], itemStates: [] },
+  { id: "template-music", name: "Music", itemIds: ["template-music-comment"], itemStates: [createDefaultTemplateCommentItem("template-music")] },
+  { id: "template-game", name: "Game", itemIds: ["template-game-comment"], itemStates: [createDefaultTemplateCommentItem("template-game")] },
+  { id: "template-comic", name: "Comic", itemIds: ["template-comic-comment"], itemStates: [createDefaultTemplateCommentItem("template-comic")] },
+  { id: "template-drama", name: "Drama", itemIds: ["template-drama-comment"], itemStates: [createDefaultTemplateCommentItem("template-drama")] },
+  { id: "template-movie", name: "Movie", itemIds: ["template-movie-comment"], itemStates: [createDefaultTemplateCommentItem("template-movie")] },
+  { id: "template-book", name: "Book", itemIds: ["template-book-comment"], itemStates: [createDefaultTemplateCommentItem("template-book")] },
+  { id: "template-anime", name: "Anime", itemIds: ["template-anime-comment"], itemStates: [createDefaultTemplateCommentItem("template-anime")] },
 ];
 
 const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
@@ -457,7 +485,8 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
                   .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
                   .filter((item): item is TemplateItemDefinition => Boolean(item))
                   .map((item) => cloneTemplateItemDefinition(item)),
-        }))
+              }))
+              .map((template) => ensureTemplateHasDefaultCommentItem(template))
     : [];
 
   for (const defaultTemplate of cloneDefaultTemplates()) {
