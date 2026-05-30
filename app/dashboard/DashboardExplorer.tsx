@@ -1957,7 +1957,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                   </section>
 
                   <section className="rounded-lg border border-zinc-200 p-4">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Episode checklist</h3>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Checklist</h3>
                     {generatedEpisodes.length > 0 ? (
                       <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {generatedEpisodes.map((episodeNumber) => (
@@ -2377,7 +2377,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     ) : null}
 
                     <div className="mt-4">
-                      <h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Episode checklist</h4>
+                      <h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Checklist</h4>
                       {episodeNumbers.length > 0 ? (
                         <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {episodeNumbers.map((episodeNumber) => (
