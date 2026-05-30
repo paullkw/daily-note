@@ -2584,7 +2584,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             }}
           >
             <h3 className="text-base font-semibold text-zinc-800">
-              Episode {episodeCommentDialog.episodeNumber} comment
+              Item {episodeCommentDialog.episodeNumber} comment
             </h3>
             <p className="mt-1 text-xs text-zinc-500">Enter a comment for this checklist item.</p>
             <textarea
