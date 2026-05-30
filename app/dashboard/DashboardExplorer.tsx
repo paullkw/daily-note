@@ -2450,7 +2450,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-3 text-sm text-zinc-500">Fill start and end episode numbers to generate items.</p>
+                        <p className="mt-3 text-sm text-zinc-500">Fill start and end numbers to generate items.</p>
                       )}
                     </div>
                   </section>
