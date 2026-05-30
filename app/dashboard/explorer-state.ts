@@ -117,6 +117,24 @@ function createDefaultTemplateCommentItem(templateId: string): TemplateItemDefin
   };
 }
 
+function createDefaultTemplateEpisodeItem(templateId: string, label: string): TemplateItemDefinition {
+  const labelSegment = label.trim().toLowerCase().replace(/\s+/g, "-");
+
+  return {
+    id: `${templateId}-episode-${labelSegment}`,
+    name: "Episode",
+    type: "episode",
+    config: {
+      label,
+      startEpisode: null,
+      endEpisode: null,
+      watchedEpisodes: [],
+      favoriteEpisodes: [],
+      episodeComments: {},
+    },
+  };
+}
+
 function ensureTemplateHasDefaultCommentItem(template: TemplateDefinition): TemplateDefinition {
   const hasCommentTextarea = template.itemStates.some((item) => item.type === "textarea" && item.config.label.trim().toLowerCase() === "comment");
 
@@ -133,14 +151,66 @@ function ensureTemplateHasDefaultCommentItem(template: TemplateDefinition): Temp
   };
 }
 
+function ensureTemplateHasRequiredDefaultEpisodeItem(template: TemplateDefinition): TemplateDefinition {
+  const requiredEpisodeLabelByTemplateId: Record<string, string> = {
+    "template-comic": "Chapter",
+    "template-drama": "Season 1",
+    "template-anime": "Season 1",
+  };
+
+  const requiredLabel = requiredEpisodeLabelByTemplateId[template.id];
+
+  if (!requiredLabel) {
+    return template;
+  }
+
+  const hasRequiredEpisode = template.itemStates.some((item) => item.type === "episode" && item.config.label.trim().toLowerCase() === requiredLabel.toLowerCase());
+
+  if (hasRequiredEpisode) {
+    return template;
+  }
+
+  const requiredEpisodeItem = createDefaultTemplateEpisodeItem(template.id, requiredLabel);
+
+  return {
+    ...template,
+    itemIds: [...template.itemIds, requiredEpisodeItem.id],
+    itemStates: [...template.itemStates, requiredEpisodeItem],
+  };
+}
+
 const DEFAULT_TEMPLATES: TemplateDefinition[] = [
   { id: "template-music", name: "Music", itemIds: ["template-music-comment"], itemStates: [createDefaultTemplateCommentItem("template-music")] },
   { id: "template-game", name: "Game", itemIds: ["template-game-comment"], itemStates: [createDefaultTemplateCommentItem("template-game")] },
-  { id: "template-comic", name: "Comic", itemIds: ["template-comic-comment"], itemStates: [createDefaultTemplateCommentItem("template-comic")] },
-  { id: "template-drama", name: "Drama", itemIds: ["template-drama-comment"], itemStates: [createDefaultTemplateCommentItem("template-drama")] },
+  {
+    id: "template-comic",
+    name: "Comic",
+    itemIds: ["template-comic-comment", "template-comic-episode-chapter"],
+    itemStates: [
+      createDefaultTemplateCommentItem("template-comic"),
+      createDefaultTemplateEpisodeItem("template-comic", "Chapter"),
+    ],
+  },
+  {
+    id: "template-drama",
+    name: "Drama",
+    itemIds: ["template-drama-comment", "template-drama-episode-season-1"],
+    itemStates: [
+      createDefaultTemplateCommentItem("template-drama"),
+      createDefaultTemplateEpisodeItem("template-drama", "Season 1"),
+    ],
+  },
   { id: "template-movie", name: "Movie", itemIds: ["template-movie-comment"], itemStates: [createDefaultTemplateCommentItem("template-movie")] },
   { id: "template-book", name: "Book", itemIds: ["template-book-comment"], itemStates: [createDefaultTemplateCommentItem("template-book")] },
-  { id: "template-anime", name: "Anime", itemIds: ["template-anime-comment"], itemStates: [createDefaultTemplateCommentItem("template-anime")] },
+  {
+    id: "template-anime",
+    name: "Anime",
+    itemIds: ["template-anime-comment", "template-anime-episode-season-1"],
+    itemStates: [
+      createDefaultTemplateCommentItem("template-anime"),
+      createDefaultTemplateEpisodeItem("template-anime", "Season 1"),
+    ],
+  },
 ];
 
 const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
@@ -558,6 +628,7 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
                   .map((item) => cloneTemplateItemDefinition(item)),
               }))
               .map((template) => ensureTemplateHasDefaultCommentItem(template))
+                .map((template) => ensureTemplateHasRequiredDefaultEpisodeItem(template))
     : [];
 
   for (const defaultTemplate of cloneDefaultTemplates()) {
