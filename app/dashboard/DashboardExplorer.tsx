@@ -890,6 +890,16 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setSelectedRecycleBinItemId(null);
   };
 
+  const permanentDeleteRecycleBinItem = (nodeId: string) => {
+    if (!isNodeInsideRecycleBin(treeNodes, nodeId)) {
+      return;
+    }
+
+    const nextNodes = removeNode(treeNodes, nodeId);
+    void persistTree(nextNodes);
+    setSelectedRecycleBinItemId(null);
+  };
+
   const handleDragStart = (event: DragEvent<HTMLDivElement>, nodeId: string) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", nodeId);
@@ -2111,7 +2121,19 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     </ul>
                   </section>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+                      onClick={() => {
+                        if (selectedRecycleBinItem) {
+                          permanentDeleteRecycleBinItem(selectedRecycleBinItem.id);
+                        }
+                      }}
+                      disabled={!selectedRecycleBinItem}
+                    >
+                      Permanent delete item
+                    </button>
                     <button
                       type="button"
                       className="rounded-md border border-zinc-800 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
