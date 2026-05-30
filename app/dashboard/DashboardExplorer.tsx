@@ -26,6 +26,7 @@ type TemplateDraftEntry = {
 const SETTING_NODE_ID = "setting";
 const RECYCLE_BIN_NODE_ID = "recycle-bin";
 const EPISODE_TEMPLATE_ITEM_NAME = "Episode";
+const CATEGORY_ROOT_NODE_IDS = new Set(["music", "game", "comic", "drama", "movie", "book", "anime"]);
 
 type SettingView = "overview" | "template-editor" | "episode-editor" | "textbox-editor" | "textarea-editor";
 
@@ -730,6 +731,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       return;
     }
 
+    if (CATEGORY_ROOT_NODE_IDS.has(menu.targetId)) {
+      return;
+    }
+
     const target = findNodeById(treeNodes, menu.targetId);
 
     if (!target) {
@@ -823,6 +828,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
   const removeSelected = () => {
     if (!menu.targetId) {
+      return;
+    }
+
+    if (CATEGORY_ROOT_NODE_IDS.has(menu.targetId)) {
       return;
     }
 
@@ -974,6 +983,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const showRecycleBinPage = selectedNodeId === RECYCLE_BIN_NODE_ID;
   const selectedNode = selectedNodeId ? findNodeById(treeNodes, selectedNodeId) : null;
   const menuTargetProtected = menu.targetId === SETTING_NODE_ID || menu.targetId === RECYCLE_BIN_NODE_ID;
+  const menuTargetCategoryRoot = menu.targetId ? CATEGORY_ROOT_NODE_IDS.has(menu.targetId) : false;
   const recycleBinNode = findNodeById(treeNodes, RECYCLE_BIN_NODE_ID);
   const recycleBinItems = recycleBinNode?.children ?? [];
   const flattenedRecycleBinItems = flattenExplorerNodes(recycleBinItems);
@@ -2549,24 +2559,28 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             ) : null}
           </div>
 
-          <button
-            type="button"
-            className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
-            onMouseEnter={() => setCreateOpen(false)}
-            onClick={startRename}
-            disabled={!menu.targetId || menuTargetProtected}
-          >
-            Rename
-          </button>
+          {!menuTargetCategoryRoot ? (
+            <button
+              type="button"
+              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+              onMouseEnter={() => setCreateOpen(false)}
+              onClick={startRename}
+              disabled={!menu.targetId || menuTargetProtected}
+            >
+              Rename
+            </button>
+          ) : null}
 
-          <button
-            type="button"
-            className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
-            onClick={removeSelected}
-            disabled={!menu.targetId || menuTargetProtected}
-          >
-            Remove
-          </button>
+          {!menuTargetCategoryRoot ? (
+            <button
+              type="button"
+              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+              onClick={removeSelected}
+              disabled={!menu.targetId || menuTargetProtected}
+            >
+              Remove
+            </button>
+          ) : null}
         </div>
       ) : null}
     </main>
