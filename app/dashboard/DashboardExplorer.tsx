@@ -341,6 +341,20 @@ function isNodeInsideRecycleBin(nodes: ExplorerNode[], nodeId: string): boolean 
   return containsNode(recycleBinNode.children, nodeId);
 }
 
+function flattenExplorerNodes(nodes: ExplorerNode[], depth = 0): Array<{ node: ExplorerNode; depth: number }> {
+  const flattened: Array<{ node: ExplorerNode; depth: number }> = [];
+
+  for (const node of nodes) {
+    flattened.push({ node, depth });
+
+    if (node.children && node.children.length > 0) {
+      flattened.push(...flattenExplorerNodes(node.children, depth + 1));
+    }
+  }
+
+  return flattened;
+}
+
 function createNodeId(): string {
   const random = Math.random().toString(36).slice(2, 10);
   return `node-${Date.now()}-${random}`;
@@ -572,6 +586,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const [createOpen, setCreateOpen] = useState(false);
   const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [selectedRecycleBinItemId, setSelectedRecycleBinItemId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [episodeCommentDialog, setEpisodeCommentDialog] = useState<{
@@ -842,45 +857,28 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     const nextNodes = addNodeToFolder(detachedResult.nodes, RECYCLE_BIN_NODE_ID, detachedResult.detached);
 
     void persistTree(nextNodes);
-    setExpandedFolderIds((current) => {
-      const next = new Set(current);
-      next.add(SETTING_NODE_ID);
-      next.add(RECYCLE_BIN_NODE_ID);
-      return next;
-    });
     setMenu((current) => ({ ...current, open: false, targetId: null }));
     setCreateOpen(false);
-    if (selectedNodeId === menu.targetId) {
-      setSelectedNodeId(RECYCLE_BIN_NODE_ID);
-    }
     if (editingTargetId === menu.targetId) {
       setEditingTargetId(null);
       setEditingValue("");
     }
   };
 
-  const restoreSelected = () => {
-    if (!menu.targetId || !isNodeInsideRecycleBin(treeNodes, menu.targetId)) {
+  const restoreRecycleBinItem = (nodeId: string) => {
+    if (!isNodeInsideRecycleBin(treeNodes, nodeId)) {
       return;
     }
 
-    const detachedResult = detachNode(treeNodes, menu.targetId);
+    const detachedResult = detachNode(treeNodes, nodeId);
 
     if (!detachedResult.detached) {
       return;
     }
 
     const nextNodes = [...detachedResult.nodes, detachedResult.detached];
-
     void persistTree(nextNodes);
-    setMenu((current) => ({ ...current, open: false, targetId: null }));
-    setCreateOpen(false);
-    setSelectedNodeId(detachedResult.detached.id);
-
-    if (editingTargetId === menu.targetId) {
-      setEditingTargetId(null);
-      setEditingValue("");
-    }
+    setSelectedRecycleBinItemId(null);
   };
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>, nodeId: string) => {
@@ -973,10 +971,13 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
   const treeRowClass = "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100";
   const showSettingsPage = selectedNodeId === SETTING_NODE_ID;
+  const showRecycleBinPage = selectedNodeId === RECYCLE_BIN_NODE_ID;
   const selectedNode = selectedNodeId ? findNodeById(treeNodes, selectedNodeId) : null;
-  const menuTargetNode = menu.targetId ? findNodeById(treeNodes, menu.targetId) : null;
-  const menuTargetInsideRecycleBin = menu.targetId ? isNodeInsideRecycleBin(treeNodes, menu.targetId) : false;
   const menuTargetProtected = menu.targetId === SETTING_NODE_ID || menu.targetId === RECYCLE_BIN_NODE_ID;
+  const recycleBinNode = findNodeById(treeNodes, RECYCLE_BIN_NODE_ID);
+  const recycleBinItems = recycleBinNode?.children ?? [];
+  const flattenedRecycleBinItems = flattenExplorerNodes(recycleBinItems);
+  const selectedRecycleBinItem = selectedRecycleBinItemId ? findNodeById(recycleBinItems, selectedRecycleBinItemId) : null;
   const selectedTemplateNode = selectedNode && selectedNode.kind === "item" && selectedNode.templateId ? selectedNode : null;
   const selectedTemplate = selectedTemplateNode ? templates.find((template) => template.id === selectedTemplateNode.templateId) ?? null : null;
   const selectedTemplateState = selectedTemplateNode
@@ -996,6 +997,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     setSelectedTemplateAddMenuOpen(false);
     setSelectedTemplateEditingLabelItemId(null);
     setSelectedTemplateEditingLabelValue("");
+    setSelectedRecycleBinItemId(null);
   };
 
   const commitTemplateName = async () => {
@@ -1640,11 +1642,14 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
               {treeNodes.map((node) => {
                 const renderNode = (currentNode: ExplorerNode, depth: number) => {
                   const childNodes = currentNode.children ?? [];
-                  const hasChildren = childNodes.length > 0;
+                  const isRecycleBinNode = currentNode.id === RECYCLE_BIN_NODE_ID;
+                  const visibleChildNodes = isRecycleBinNode ? [] : childNodes;
+                  const hasChildren = visibleChildNodes.length > 0;
                   const isFolder = currentNode.kind === "folder";
                   const isExpanded = isFolder && expandedFolderIds.has(currentNode.id);
-                  const disableContextMenu = currentNode.id === SETTING_NODE_ID || currentNode.id === RECYCLE_BIN_NODE_ID;
-                  const disableDrag = currentNode.id === SETTING_NODE_ID || currentNode.id === RECYCLE_BIN_NODE_ID;
+                  const insideRecycleBin = isNodeInsideRecycleBin(treeNodes, currentNode.id);
+                  const disableContextMenu = currentNode.id === SETTING_NODE_ID || currentNode.id === RECYCLE_BIN_NODE_ID || insideRecycleBin;
+                  const disableDrag = currentNode.id === SETTING_NODE_ID || currentNode.id === RECYCLE_BIN_NODE_ID || insideRecycleBin;
                   const isSelected = selectedNodeId === currentNode.id;
                   const isEditing = editingTargetId === currentNode.id;
                   const isDragSource = draggingId === currentNode.id;
@@ -1671,7 +1676,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         onDrop={(event) => handleDropNode(event, currentNode.id)}
                         onDragEnd={handleDragEnd}
                         onDoubleClick={() => {
-                          if (isFolder && !isEditing) {
+                          if (isFolder && !isEditing && !isRecycleBinNode) {
                             toggleFolder(currentNode.id);
                           }
                         }}
@@ -1692,7 +1697,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                         )}
                       </div>
 
-                      {isFolder && isExpanded && hasChildren ? <ul className="space-y-1">{childNodes.map((child) => renderNode(child, depth + 1))}</ul> : null}
+                      {isFolder && isExpanded && hasChildren ? <ul className="space-y-1">{visibleChildNodes.map((child) => renderNode(child, depth + 1))}</ul> : null}
                     </li>
                   );
                 };
@@ -2062,6 +2067,57 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     />
                   </section>
                 </div>
+              )}
+            </div>
+          ) : showRecycleBinPage ? (
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-800">Recycle Bin</h2>
+                <p className="mt-1 text-sm text-zinc-500">Select a removed item and restore it back to the root level.</p>
+              </div>
+
+              {flattenedRecycleBinItems.length > 0 ? (
+                <>
+                  <section className="rounded-lg border border-zinc-200 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Removed items</h3>
+                    <ul className="mt-3 space-y-2">
+                      {flattenedRecycleBinItems.map(({ node, depth }) => {
+                        const isSelectedRecycleItem = selectedRecycleBinItemId === node.id;
+
+                        return (
+                          <li key={node.id}>
+                            <button
+                              type="button"
+                              className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition ${isSelectedRecycleItem ? "border-zinc-400 bg-zinc-100 text-zinc-800" : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100"}`}
+                              style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}
+                              onClick={() => setSelectedRecycleBinItemId(node.id)}
+                            >
+                              {node.iconKey ? <ItemIcon iconKey={node.iconKey} /> : <FolderIcon open={false} />}
+                              <span>{node.name}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-800 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+                      onClick={() => {
+                        if (selectedRecycleBinItem) {
+                          restoreRecycleBinItem(selectedRecycleBinItem.id);
+                        }
+                      }}
+                      disabled={!selectedRecycleBinItem}
+                    >
+                      Restore selected item
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-zinc-500">Recycle Bin is empty.</p>
               )}
             </div>
           ) : selectedTemplateNode && selectedTemplate && selectedTemplateState ? (
@@ -2503,24 +2559,13 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             Rename
           </button>
 
-          {menuTargetInsideRecycleBin && menuTargetNode ? (
-            <button
-              type="button"
-              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100"
-              onMouseEnter={() => setCreateOpen(false)}
-              onClick={restoreSelected}
-            >
-              Restore
-            </button>
-          ) : null}
-
           <button
             type="button"
             className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
             onClick={removeSelected}
             disabled={!menu.targetId || menuTargetProtected}
           >
-            {menuTargetInsideRecycleBin ? "Delete permanently" : "Remove"}
+            Remove
           </button>
         </div>
       ) : null}
