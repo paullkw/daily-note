@@ -1952,7 +1952,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                       />
                     </div>
                     {!hasValidEpisodeRange ? (
-                      <p className="mt-2 text-xs text-zinc-500">Enter valid episode numbers. Start can be 0, and end must be greater than or equal to start.</p>
+                      <p className="mt-2 text-xs text-zinc-500">Enter valid numbers. Start can be 0, and end must be greater than or equal to start.</p>
                     ) : null}
                   </section>
 
@@ -2373,7 +2373,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                       />
                     </div>
                     {!episodeHasValidRange ? (
-                      <p className="mt-2 text-xs text-zinc-500">Enter valid episode numbers. Start can be 0, and end must be greater than or equal to start.</p>
+                      <p className="mt-2 text-xs text-zinc-500">Enter valid numbers. Start can be 0, and end must be greater than or equal to start.</p>
                     ) : null}
 
                     <div className="mt-4">

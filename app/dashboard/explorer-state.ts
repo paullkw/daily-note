@@ -1,32 +1,16 @@
 export type ExplorerNodeKind = "folder" | "item";
 
-export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template" | "recycle";
+export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template";
 export type TemplateItemType = "episode" | "textbox" | "textarea";
 
 const SETTING_NODE_ID = "setting";
-const RECYCLE_BIN_NODE_ID = "recycle-bin";
 
-function createRecycleBinNode(): ExplorerNode {
-  return {
-    id: RECYCLE_BIN_NODE_ID,
-    name: "Recycle Bin",
-    kind: "folder",
-    iconKey: "recycle",
-    children: [],
-  };
-}
-
-function createSettingNode(): ExplorerNode {
-  return {
-    id: SETTING_NODE_ID,
-    name: "Setting",
-    kind: "item",
-    iconKey: "setting",
-    children: [],
-  };
-}
-
-const SETTING_NODE = createSettingNode();
+const SETTING_NODE: ExplorerNode = {
+  id: SETTING_NODE_ID,
+  name: "Setting",
+  kind: "item",
+  iconKey: "setting",
+};
 
 export type ExplorerNode = {
   id: string;
@@ -105,112 +89,14 @@ type TextboxTemplateItemConfigInput = {
   value?: unknown;
 };
 
-function createDefaultTemplateCommentItem(templateId: string): TemplateItemDefinition {
-  return {
-    id: `${templateId}-comment`,
-    name: "Textarea",
-    type: "textarea",
-    config: {
-      label: "Comment",
-      value: "",
-    },
-  };
-}
-
-function createDefaultTemplateEpisodeItem(templateId: string, label: string): TemplateItemDefinition {
-  const labelSegment = label.trim().toLowerCase().replace(/\s+/g, "-");
-
-  return {
-    id: `${templateId}-episode-${labelSegment}`,
-    name: "Episode",
-    type: "episode",
-    config: {
-      label,
-      startEpisode: null,
-      endEpisode: null,
-      watchedEpisodes: [],
-      favoriteEpisodes: [],
-      episodeComments: {},
-    },
-  };
-}
-
-function ensureTemplateHasDefaultCommentItem(template: TemplateDefinition): TemplateDefinition {
-  const hasCommentTextarea = template.itemStates.some((item) => item.type === "textarea" && item.config.label.trim().toLowerCase() === "comment");
-
-  if (hasCommentTextarea) {
-    return template;
-  }
-
-  const defaultCommentItem = createDefaultTemplateCommentItem(template.id);
-
-  return {
-    ...template,
-    itemIds: [...template.itemIds, defaultCommentItem.id],
-    itemStates: [...template.itemStates, defaultCommentItem],
-  };
-}
-
-function ensureTemplateHasRequiredDefaultEpisodeItem(template: TemplateDefinition): TemplateDefinition {
-  const requiredEpisodeLabelByTemplateId: Record<string, string> = {
-    "template-comic": "Chapter",
-    "template-drama": "Season 1",
-    "template-anime": "Season 1",
-  };
-
-  const requiredLabel = requiredEpisodeLabelByTemplateId[template.id];
-
-  if (!requiredLabel) {
-    return template;
-  }
-
-  const hasRequiredEpisode = template.itemStates.some((item) => item.type === "episode" && item.config.label.trim().toLowerCase() === requiredLabel.toLowerCase());
-
-  if (hasRequiredEpisode) {
-    return template;
-  }
-
-  const requiredEpisodeItem = createDefaultTemplateEpisodeItem(template.id, requiredLabel);
-
-  return {
-    ...template,
-    itemIds: [...template.itemIds, requiredEpisodeItem.id],
-    itemStates: [...template.itemStates, requiredEpisodeItem],
-  };
-}
-
 const DEFAULT_TEMPLATES: TemplateDefinition[] = [
-  { id: "template-music", name: "Music", itemIds: ["template-music-comment"], itemStates: [createDefaultTemplateCommentItem("template-music")] },
-  { id: "template-game", name: "Game", itemIds: ["template-game-comment"], itemStates: [createDefaultTemplateCommentItem("template-game")] },
-  {
-    id: "template-comic",
-    name: "Comic",
-    itemIds: ["template-comic-comment", "template-comic-episode-chapter"],
-    itemStates: [
-      createDefaultTemplateCommentItem("template-comic"),
-      createDefaultTemplateEpisodeItem("template-comic", "Chapter"),
-    ],
-  },
-  {
-    id: "template-drama",
-    name: "Drama",
-    itemIds: ["template-drama-comment", "template-drama-episode-season-1"],
-    itemStates: [
-      createDefaultTemplateCommentItem("template-drama"),
-      createDefaultTemplateEpisodeItem("template-drama", "Season 1"),
-    ],
-  },
-  { id: "template-movie", name: "Movie", itemIds: ["template-movie-comment"], itemStates: [createDefaultTemplateCommentItem("template-movie")] },
-  { id: "template-book", name: "Book", itemIds: ["template-book-comment"], itemStates: [createDefaultTemplateCommentItem("template-book")] },
-  {
-    id: "template-anime",
-    name: "Anime",
-    itemIds: ["template-anime-comment", "template-anime-episode-season-1"],
-    itemStates: [
-      createDefaultTemplateCommentItem("template-anime"),
-      createDefaultTemplateEpisodeItem("template-anime", "Season 1"),
-    ],
-  },
+  { id: "template-music", name: "Music", itemIds: [], itemStates: [] },
+  { id: "template-game", name: "Game", itemIds: [], itemStates: [] },
+  { id: "template-comic", name: "Comic", itemIds: [], itemStates: [] },
+  { id: "template-drama", name: "Drama", itemIds: [], itemStates: [] },
+  { id: "template-movie", name: "Movie", itemIds: [], itemStates: [] },
+  { id: "template-book", name: "Book", itemIds: [], itemStates: [] },
+  { id: "template-anime", name: "Anime", itemIds: [], itemStates: [] },
 ];
 
 const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
@@ -266,7 +152,6 @@ export const DEFAULT_EXPLORER_STATE: ExplorerState = {
     { id: "book", name: "Book", kind: "folder", iconKey: "book", children: [] },
     { id: "anime", name: "Anime", kind: "folder", iconKey: "anime", children: [] },
     SETTING_NODE,
-    createRecycleBinNode(),
   ],
   templates: DEFAULT_TEMPLATES,
   templateItems: DEFAULT_TEMPLATE_ITEMS,
@@ -301,61 +186,6 @@ function normalizeParentCategoryNodes(nodes: ExplorerNode[]): ExplorerNode[] {
       children: nextChildren ?? [],
     };
   });
-}
-
-function ensureTopLevelSettingAndRecycleBin(nodes: ExplorerNode[]): ExplorerNode[] {
-  const existingSettingNode = nodes.find((node) => node.id === SETTING_NODE_ID);
-  const existingRecycleBinNode = nodes.find((node) => node.id === RECYCLE_BIN_NODE_ID);
-
-  let recoveredRecycleChildren: ExplorerNode[] = [];
-
-  if (existingSettingNode?.children && existingSettingNode.children.length > 0) {
-    const nestedRecycleBinNode = existingSettingNode.children.find((child) => child.id === RECYCLE_BIN_NODE_ID);
-
-    if (nestedRecycleBinNode?.children && nestedRecycleBinNode.children.length > 0) {
-      recoveredRecycleChildren = nestedRecycleBinNode.children;
-    }
-  }
-
-  const nodesWithoutNestedRecycle = nodes.map((node) => {
-    if (node.id !== SETTING_NODE_ID) {
-      return node;
-    }
-
-    return {
-      ...node,
-      name: "Setting",
-      kind: "item",
-      iconKey: "setting",
-      children: [],
-    };
-  });
-
-  const nodesWithSetting = existingSettingNode
-    ? nodesWithoutNestedRecycle
-    : [...nodesWithoutNestedRecycle, createSettingNode()];
-
-  if (existingRecycleBinNode) {
-    return nodesWithSetting.map((node) => (
-      node.id === RECYCLE_BIN_NODE_ID
-        ? {
-            ...node,
-            name: "Recycle Bin",
-            kind: "folder",
-            iconKey: "recycle",
-            children: [...(node.children ?? []), ...recoveredRecycleChildren],
-          }
-        : node
-    ));
-  }
-
-  return [
-    ...nodesWithSetting,
-    {
-      ...createRecycleBinNode(),
-      children: recoveredRecycleChildren,
-    },
-  ];
 }
 
 function cloneDefaultTemplates(): TemplateDefinition[] {
@@ -413,8 +243,7 @@ function normalizeNode(input: unknown): ExplorerNode | null {
     source.iconKey === "book" ||
     source.iconKey === "anime" ||
     source.iconKey === "setting" ||
-    source.iconKey === "template" ||
-    source.iconKey === "recycle"
+    source.iconKey === "template"
       ? source.iconKey
       : undefined;
   const templateId = typeof source.templateId === "string" && source.templateId.trim() ? source.templateId.trim() : undefined;
@@ -595,7 +424,9 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     };
   }
 
-  const nodesWithSetting = ensureTopLevelSettingAndRecycleBin(nodes);
+  if (!nodes.some((node) => node.id === SETTING_NODE_ID)) {
+    nodes.push(SETTING_NODE);
+  }
 
   const templateItems = Array.isArray(input.templateItems)
     ? input.templateItems
@@ -626,9 +457,7 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
                   .map((itemId) => templateItems.find((item) => item.id === itemId) ?? null)
                   .filter((item): item is TemplateItemDefinition => Boolean(item))
                   .map((item) => cloneTemplateItemDefinition(item)),
-              }))
-              .map((template) => ensureTemplateHasDefaultCommentItem(template))
-                .map((template) => ensureTemplateHasRequiredDefaultEpisodeItem(template))
+        }))
     : [];
 
   for (const defaultTemplate of cloneDefaultTemplates()) {
@@ -637,5 +466,5 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     }
   }
 
-  return { nodes: nodesWithSetting, templates, templateItems };
+  return { nodes, templates, templateItems };
 }
