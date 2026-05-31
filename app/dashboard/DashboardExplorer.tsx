@@ -356,6 +356,22 @@ function flattenExplorerNodes(nodes: ExplorerNode[], depth = 0): Array<{ node: E
   return flattened;
 }
 
+function pinSystemNodesToBottom(nodes: ExplorerNode[]): ExplorerNode[] {
+  const settingNode = nodes.find((node) => node.id === SETTING_NODE_ID);
+  const recycleBinNode = nodes.find((node) => node.id === RECYCLE_BIN_NODE_ID);
+  const regularNodes = nodes.filter((node) => node.id !== SETTING_NODE_ID && node.id !== RECYCLE_BIN_NODE_ID);
+
+  if (settingNode) {
+    regularNodes.push(settingNode);
+  }
+
+  if (recycleBinNode) {
+    regularNodes.push(recycleBinNode);
+  }
+
+  return regularNodes;
+}
+
 function createNodeId(): string {
   const random = Math.random().toString(36).slice(2, 10);
   return `node-${Date.now()}-${random}`;
@@ -680,11 +696,13 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     nextTemplates?: TemplateDefinition[];
     nextTemplateItems?: TemplateItemDefinition[];
   }) => {
-    setTreeNodes(nextNodes);
+    const normalizedNodes = pinSystemNodesToBottom(nextNodes);
+
+    setTreeNodes(normalizedNodes);
     setTemplates(nextTemplates);
     setTemplateItems(nextTemplateItems);
     await saveDashboardExplorerState({
-      nodes: nextNodes,
+      nodes: normalizedNodes,
       templates: nextTemplates,
       templateItems: nextTemplateItems,
     });

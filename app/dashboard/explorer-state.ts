@@ -1,15 +1,24 @@
 export type ExplorerNodeKind = "folder" | "item";
 
-export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template";
+export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template" | "recycle";
 export type TemplateItemType = "episode" | "textbox" | "textarea";
 
 const SETTING_NODE_ID = "setting";
+const RECYCLE_BIN_NODE_ID = "recycle-bin";
 
 const SETTING_NODE: ExplorerNode = {
   id: SETTING_NODE_ID,
   name: "Setting",
   kind: "item",
   iconKey: "setting",
+};
+
+const RECYCLE_BIN_NODE: ExplorerNode = {
+  id: RECYCLE_BIN_NODE_ID,
+  name: "Recycle Bin",
+  kind: "folder",
+  iconKey: "recycle",
+  children: [],
 };
 
 export type ExplorerNode = {
@@ -275,6 +284,7 @@ export const DEFAULT_EXPLORER_STATE: ExplorerState = {
     { id: "movie", name: "Movie", kind: "folder", iconKey: "movie", children: [] },
     { id: "book", name: "Book", kind: "folder", iconKey: "book", children: [] },
     { id: "anime", name: "Anime", kind: "folder", iconKey: "anime", children: [] },
+    RECYCLE_BIN_NODE,
     SETTING_NODE,
   ],
   templates: DEFAULT_TEMPLATES,
@@ -292,6 +302,21 @@ const PARENT_NODE_ICON_KEYS: Record<string, ExplorerIconKey> = {
 };
 
 const CATEGORY_PARENT_NODE_IDS = new Set(Object.keys(PARENT_NODE_ICON_KEYS));
+function pinSystemNodesToBottom(nodes: ExplorerNode[]): ExplorerNode[] {
+  const settingNode = nodes.find((node) => node.id === SETTING_NODE_ID);
+  const recycleBinNode = nodes.find((node) => node.id === RECYCLE_BIN_NODE_ID);
+  const regularNodes = nodes.filter((node) => node.id !== SETTING_NODE_ID && node.id !== RECYCLE_BIN_NODE_ID);
+
+  if (settingNode) {
+    regularNodes.push(settingNode);
+  }
+
+  if (recycleBinNode) {
+    regularNodes.push(recycleBinNode);
+  }
+
+  return regularNodes;
+}
 
 function normalizeParentCategoryNodes(nodes: ExplorerNode[]): ExplorerNode[] {
   return nodes.map((node) => {
@@ -315,8 +340,8 @@ function normalizeParentCategoryNodes(nodes: ExplorerNode[]): ExplorerNode[] {
 function cloneDefaultTemplates(): TemplateDefinition[] {
   return DEFAULT_TEMPLATES.map((template) => ({
     ...template,
-    itemIds: [...template.itemIds],
     itemStates: template.itemStates.map((itemState) => cloneTemplateItemDefinition(itemState)),
+        RECYCLE_BIN_NODE,
   }));
 }
 
@@ -367,7 +392,8 @@ function normalizeNode(input: unknown): ExplorerNode | null {
     source.iconKey === "book" ||
     source.iconKey === "anime" ||
     source.iconKey === "setting" ||
-    source.iconKey === "template"
+    source.iconKey === "template" ||
+    source.iconKey === "recycle"
       ? source.iconKey
       : undefined;
   const templateId = typeof source.templateId === "string" && source.templateId.trim() ? source.templateId.trim() : undefined;
@@ -376,7 +402,7 @@ function normalizeNode(input: unknown): ExplorerNode | null {
     ? source.children.map((child) => normalizeNode(child)).filter((child): child is ExplorerNode => Boolean(child))
     : [];
 
-  const forceFolder = CATEGORY_PARENT_NODE_IDS.has(id);
+  const forceFolder = CATEGORY_PARENT_NODE_IDS.has(id) || id === RECYCLE_BIN_NODE_ID;
   const forcedIconKey = PARENT_NODE_ICON_KEYS[id];
 
   return {
@@ -552,6 +578,10 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     nodes.push(SETTING_NODE);
   }
 
+  if (!nodes.some((node) => node.id === RECYCLE_BIN_NODE_ID)) {
+    nodes.push(RECYCLE_BIN_NODE);
+  }
+
   const templateItems = Array.isArray(input.templateItems)
     ? input.templateItems
         .map((item) => normalizeTemplateItem(item))
@@ -593,5 +623,5 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     }
   }
 
-  return { nodes, templates, templateItems };
+  return { nodes: pinSystemNodesToBottom(nodes), templates, templateItems };
 }
