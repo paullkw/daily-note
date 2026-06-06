@@ -35,6 +35,7 @@ export type ExplorerState = {
   nodes: ExplorerNode[];
   templates: TemplateDefinition[];
   templateItems: TemplateItemDefinition[];
+  expandedFolderIds: string[];
 };
 
 export type TemplateDefinition = {
@@ -289,6 +290,7 @@ export const DEFAULT_EXPLORER_STATE: ExplorerState = {
   ],
   templates: DEFAULT_TEMPLATES,
   templateItems: DEFAULT_TEMPLATE_ITEMS,
+  expandedFolderIds: ["music", "game", "comic", "drama", "japan", "korea", "movie", "book", "anime", RECYCLE_BIN_NODE_ID],
 };
 
 const PARENT_NODE_ICON_KEYS: Record<string, ExplorerIconKey> = {
@@ -341,8 +343,26 @@ function cloneDefaultTemplates(): TemplateDefinition[] {
   return DEFAULT_TEMPLATES.map((template) => ({
     ...template,
     itemStates: template.itemStates.map((itemState) => cloneTemplateItemDefinition(itemState)),
-        RECYCLE_BIN_NODE,
   }));
+}
+
+function collectFolderIds(nodes: ExplorerNode[]): Set<string> {
+  const folderIds = new Set<string>();
+
+  const walk = (currentNodes: ExplorerNode[]) => {
+    for (const node of currentNodes) {
+      if (node.kind === "folder") {
+        folderIds.add(node.id);
+      }
+
+      if (node.children && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+
+  walk(nodes);
+  return folderIds;
 }
 
 function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItemDefinition {
@@ -557,6 +577,7 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
       nodes: [...DEFAULT_EXPLORER_STATE.nodes],
       templates: cloneDefaultTemplates(),
       templateItems: cloneDefaultTemplateItems(),
+      expandedFolderIds: [...DEFAULT_EXPLORER_STATE.expandedFolderIds],
     };
   }
 
@@ -571,6 +592,7 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
       nodes: [...DEFAULT_EXPLORER_STATE.nodes],
       templates: cloneDefaultTemplates(),
       templateItems: cloneDefaultTemplateItems(),
+      expandedFolderIds: [...DEFAULT_EXPLORER_STATE.expandedFolderIds],
     };
   }
 
@@ -623,5 +645,16 @@ export function normalizeExplorerState(input: Partial<ExplorerState> | null | un
     }
   }
 
-  return { nodes: pinSystemNodesToBottom(nodes), templates, templateItems };
+  const normalizedNodes = pinSystemNodesToBottom(nodes);
+  const availableFolderIds = collectFolderIds(normalizedNodes);
+  const expandedFolderIds = Array.isArray(input.expandedFolderIds)
+    ? input.expandedFolderIds.filter((folderId): folderId is string => typeof folderId === "string" && availableFolderIds.has(folderId))
+    : [...availableFolderIds];
+
+  return {
+    nodes: normalizedNodes,
+    templates,
+    templateItems,
+    expandedFolderIds,
+  };
 }

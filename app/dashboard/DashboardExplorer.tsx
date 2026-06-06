@@ -585,7 +585,12 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const [treeNodes, setTreeNodes] = useState<ExplorerNode[]>(() => initialState.nodes);
   const [templates, setTemplates] = useState<TemplateDefinition[]>(() => initialState.templates);
   const [templateItems, setTemplateItems] = useState<TemplateItemDefinition[]>(() => initialState.templateItems);
-  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => collectFolderIds(initialState.nodes));
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => {
+    const initialExpandedFolderIds = Array.isArray(initialState.expandedFolderIds)
+      ? initialState.expandedFolderIds
+      : Array.from(collectFolderIds(initialState.nodes));
+    return new Set(initialExpandedFolderIds);
+  });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingView, setSettingView] = useState<SettingView>("overview");
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
@@ -691,25 +696,31 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
     nextNodes = treeNodes,
     nextTemplates = templates,
     nextTemplateItems = templateItems,
+    nextExpandedFolderIds = expandedFolderIds,
   }: {
     nextNodes?: ExplorerNode[];
     nextTemplates?: TemplateDefinition[];
     nextTemplateItems?: TemplateItemDefinition[];
+    nextExpandedFolderIds?: Set<string>;
   }) => {
     const normalizedNodes = pinSystemNodesToBottom(nextNodes);
+    const availableFolderIds = collectFolderIds(normalizedNodes);
+    const normalizedExpandedFolderIds = Array.from(nextExpandedFolderIds).filter((folderId) => availableFolderIds.has(folderId));
 
     setTreeNodes(normalizedNodes);
     setTemplates(nextTemplates);
     setTemplateItems(nextTemplateItems);
+    setExpandedFolderIds(new Set(normalizedExpandedFolderIds));
     await saveDashboardExplorerState({
       nodes: normalizedNodes,
       templates: nextTemplates,
       templateItems: nextTemplateItems,
+      expandedFolderIds: normalizedExpandedFolderIds,
     });
   };
 
-  const persistTree = async (nextNodes: ExplorerNode[]) => {
-    await persistDashboardState({ nextNodes });
+  const persistTree = async (nextNodes: ExplorerNode[], nextExpandedFolderIds: Set<string> = expandedFolderIds) => {
+    await persistDashboardState({ nextNodes, nextExpandedFolderIds });
   };
 
   const persistTemplateItems = async (nextTemplateItems: TemplateItemDefinition[]) => {
@@ -784,13 +795,10 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     const newItem = createTemplateBoundItem(template, templateItems);
     const nextNodes = addChildItem(treeNodes, targetNode.id, newItem);
+    const nextExpandedFolderIds = new Set(expandedFolderIds);
+    nextExpandedFolderIds.add(targetNode.id);
 
-    void persistTree(nextNodes);
-    setExpandedFolderIds((current) => {
-      const next = new Set(current);
-      next.add(targetNode.id);
-      return next;
-    });
+    void persistTree(nextNodes, nextExpandedFolderIds);
     setMenu((current) => ({ ...current, open: false, targetId: null }));
     setCreateOpen(false);
     setSelectedNodeId(newItem.id);
@@ -814,16 +822,15 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
       kind: "folder",
       children: [],
     });
+    const nextExpandedFolderIds = new Set(expandedFolderIds);
 
-    void persistTree(nextNodes);
-    setExpandedFolderIds((current) => {
-      const next = new Set(current);
-      if (parentId) {
-        next.add(parentId);
-      }
-      next.add(newFolderId);
-      return next;
-    });
+    if (parentId) {
+      nextExpandedFolderIds.add(parentId);
+    }
+
+    nextExpandedFolderIds.add(newFolderId);
+
+    void persistTree(nextNodes, nextExpandedFolderIds);
     setEditingTargetId(newFolderId);
     setEditingValue(newFolderName);
     setMenu((current) => ({ ...current, open: false }));
@@ -831,17 +838,15 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   };
 
   const toggleFolder = (folderId: string) => {
-    setExpandedFolderIds((current) => {
-      const next = new Set(current);
+    const nextExpandedFolderIds = new Set(expandedFolderIds);
 
-      if (next.has(folderId)) {
-        next.delete(folderId);
-      } else {
-        next.add(folderId);
-      }
+    if (nextExpandedFolderIds.has(folderId)) {
+      nextExpandedFolderIds.delete(folderId);
+    } else {
+      nextExpandedFolderIds.add(folderId);
+    }
 
-      return next;
-    });
+    void persistDashboardState({ nextExpandedFolderIds });
   };
 
   const removeSelected = () => {

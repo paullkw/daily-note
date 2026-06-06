@@ -75,6 +75,7 @@ export type DashboardTreeviewState = {
   nodes: unknown[];
   templates?: unknown[];
   templateItems?: unknown[];
+  expandedFolderIds?: unknown[];
 };
 
 function mapUser(row: UserRow): User {
@@ -134,11 +135,13 @@ function parseTreeState(value: string): DashboardTreeviewState | null {
 
     const templates = (parsed as { templates?: unknown }).templates;
     const templateItems = (parsed as { templateItems?: unknown }).templateItems;
+    const expandedFolderIds = (parsed as { expandedFolderIds?: unknown }).expandedFolderIds;
 
     return {
       nodes,
       templates: Array.isArray(templates) ? templates : undefined,
       templateItems: Array.isArray(templateItems) ? templateItems : undefined,
+      expandedFolderIds: Array.isArray(expandedFolderIds) ? expandedFolderIds : undefined,
     };
   } catch {
     return null;
