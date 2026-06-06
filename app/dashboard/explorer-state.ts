@@ -1,7 +1,7 @@
 export type ExplorerNodeKind = "folder" | "item";
 
 export type ExplorerIconKey = "music" | "game" | "comic" | "movie" | "book" | "anime" | "drama" | "setting" | "template" | "recycle";
-export type TemplateItemType = "episode" | "textbox" | "textarea";
+export type TemplateItemType = "episode" | "textbox" | "textarea" | "checkbox";
 
 const SETTING_NODE_ID = "setting";
 const RECYCLE_BIN_NODE_ID = "recycle-bin";
@@ -79,7 +79,17 @@ export type TextareaTemplateItemDefinition = {
   };
 };
 
-export type TemplateItemDefinition = EpisodeTemplateItemDefinition | TextboxTemplateItemDefinition | TextareaTemplateItemDefinition;
+export type CheckboxTemplateItemDefinition = {
+  id: string;
+  name: string;
+  type: "checkbox";
+  config: {
+    label: string;
+    checked: boolean;
+  };
+};
+
+export type TemplateItemDefinition = EpisodeTemplateItemDefinition | TextboxTemplateItemDefinition | TextareaTemplateItemDefinition | CheckboxTemplateItemDefinition;
 
 export type TemplateInstanceState = {
   itemStates: TemplateItemDefinition[];
@@ -97,6 +107,11 @@ type EpisodeTemplateItemConfigInput = {
 type TextboxTemplateItemConfigInput = {
   label?: unknown;
   value?: unknown;
+};
+
+type CheckboxTemplateItemConfigInput = {
+  label?: unknown;
+  checked?: unknown;
 };
 
 function createDefaultTemplateCommentItem(templateId: string): TemplateItemDefinition {
@@ -263,6 +278,15 @@ const DEFAULT_TEMPLATE_ITEMS: TemplateItemDefinition[] = [
     config: {
       label: "Label",
       value: "",
+    },
+  },
+  {
+    id: "template-item-checkbox",
+    name: "Checkbox",
+    type: "checkbox",
+    config: {
+      label: "Checkbox",
+      checked: false,
     },
   },
 ];
@@ -507,6 +531,20 @@ function normalizeTemplateItem(input: unknown): TemplateItemDefinition | null {
       config: {
         label: typeof config.label === "string" ? config.label : "Label",
         value: typeof config.value === "string" ? config.value : "",
+      },
+    };
+  }
+
+  if (source.type === "checkbox") {
+    const config = (source.config ?? {}) as CheckboxTemplateItemConfigInput;
+
+    return {
+      id,
+      name,
+      type: "checkbox",
+      config: {
+        label: typeof config.label === "string" ? config.label : "Checkbox",
+        checked: typeof config.checked === "boolean" ? config.checked : false,
       },
     };
   }

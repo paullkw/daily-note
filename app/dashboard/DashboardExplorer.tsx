@@ -28,7 +28,7 @@ const RECYCLE_BIN_NODE_ID = "recycle-bin";
 const EPISODE_TEMPLATE_ITEM_NAME = "Episode";
 const CATEGORY_ROOT_NODE_IDS = new Set(["music", "game", "comic", "drama", "movie", "book", "anime"]);
 
-type SettingView = "overview" | "template-editor" | "episode-editor" | "textbox-editor" | "textarea-editor";
+type SettingView = "overview" | "template-editor" | "episode-editor" | "textbox-editor" | "textarea-editor" | "checkbox-editor";
 
 function FolderIcon({ open }: { open?: boolean }) {
   return (
@@ -390,12 +390,37 @@ function cloneTemplateItemDefinition(item: TemplateItemDefinition): TemplateItem
     };
   }
 
-  return {
-    ...item,
-    config: {
-      ...item.config,
-    },
-  };
+  if (item.type === "textbox") {
+    return {
+      ...item,
+      config: {
+        label: item.config.label,
+        value: item.config.value,
+      },
+    };
+  }
+
+  if (item.type === "textarea") {
+    return {
+      ...item,
+      config: {
+        label: item.config.label,
+        value: item.config.value,
+      },
+    };
+  }
+
+  if (item.type === "checkbox") {
+    return {
+      ...item,
+      config: {
+        label: item.config.label,
+        checked: item.config.checked,
+      },
+    };
+  }
+
+  throw new Error("Unsupported template item type");
 }
 
 function createTemplateItemState(item: TemplateItemDefinition): TemplateItemDefinition {
@@ -634,6 +659,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const episodeTemplateConfig = activeTemplateItem?.type === "episode" ? activeTemplateItem.config : null;
   const textboxTemplateConfig = activeTemplateItem?.type === "textbox" ? activeTemplateItem.config : null;
   const textareaTemplateConfig = activeTemplateItem?.type === "textarea" ? activeTemplateItem.config : null;
+  const checkboxTemplateConfig = activeTemplateItem?.type === "checkbox" ? activeTemplateItem.config : null;
   const episodeStartEpisode = episodeTemplateConfig?.startEpisode;
   const episodeEndEpisode = episodeTemplateConfig?.endEpisode;
   const episodeLabel = episodeTemplateConfig?.label ?? EPISODE_TEMPLATE_ITEM_NAME;
@@ -646,6 +672,8 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
   const textboxValue = textboxTemplateConfig?.value ?? "";
   const textareaLabel = textareaTemplateConfig?.label ?? "Label";
   const textareaValue = textareaTemplateConfig?.value ?? "";
+  const checkboxLabel = checkboxTemplateConfig?.label ?? "Checkbox";
+  const checkboxChecked = checkboxTemplateConfig?.checked ?? false;
   const hasValidEpisodeRange =
     episodeStartEpisode !== null &&
     episodeStartEpisode !== undefined &&
@@ -1183,7 +1211,27 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
         };
       }
 
-      if (item.type === "textbox" || item.type === "textarea") {
+      if (item.type === "textbox") {
+        return {
+          ...item,
+          config: {
+            ...item.config,
+            label: nextLabel,
+          },
+        };
+      }
+
+      if (item.type === "textarea") {
+        return {
+          ...item,
+          config: {
+            ...item.config,
+            label: nextLabel,
+          },
+        };
+      }
+
+      if (item.type === "checkbox") {
         return {
           ...item,
           config: {
@@ -1367,6 +1415,11 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
 
     if (item.type === "textarea") {
       setSettingView("textarea-editor");
+      return;
+    }
+
+    if (item.type === "checkbox") {
+      setSettingView("checkbox-editor");
     }
   };
 
@@ -1448,6 +1501,20 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
             config: {
               label: nextLabel,
               value: currentItem.config.value,
+            },
+          },
+        };
+      }
+
+      if (entry.itemState.type === "checkbox") {
+        const currentItem = entry.itemState;
+        return {
+          ...entry,
+          itemState: {
+            ...currentItem,
+            config: {
+              label: nextLabel,
+              checked: currentItem.config.checked,
             },
           },
         };
@@ -1591,6 +1658,28 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
         config: {
           label: nextLabel,
           value: nextValue,
+        },
+      };
+    });
+
+    await persistTemplateItems(nextTemplateItems);
+  };
+
+  const updateCheckboxTemplateItem = async (nextLabel: string, nextChecked: boolean) => {
+    if (!activeTemplateItem || activeTemplateItem.type !== "checkbox") {
+      return;
+    }
+
+    const nextTemplateItems = templateItems.map((item) => {
+      if (item.id !== activeTemplateItem.id || item.type !== "checkbox") {
+        return item;
+      }
+
+      return {
+        ...item,
+        config: {
+          label: nextLabel,
+          checked: nextChecked,
         },
       };
     });
@@ -1923,7 +2012,7 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                                   </button>
                                 </div>
                               </div>
-                              {item.type === "episode" || item.type === "textbox" || item.type === "textarea" ? (
+                              {item.type === "episode" || item.type === "textbox" || item.type === "textarea" || item.type === "checkbox" ? (
                                 <div className="mt-3">
                                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Label</label>
                                   <input
@@ -2061,6 +2150,42 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
                     ) : (
                       <p className="mt-3 text-sm text-zinc-500">Fill start and end numbers to generate items.</p>
                     )}
+                  </section>
+                </div>
+              ) : settingView === "checkbox-editor" ? (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-zinc-800">Checkbox template item</h2>
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                      onClick={() => setSettingView("overview")}
+                    >
+                      Back
+                    </button>
+                  </div>
+
+                  <section className="rounded-lg border border-zinc-200 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">Label</h3>
+                    <input
+                      type="text"
+                      value={checkboxLabel}
+                      onChange={(event) => void updateCheckboxTemplateItem(event.target.value, checkboxChecked)}
+                      className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                      placeholder="Checkbox"
+                    />
+                  </section>
+
+                  <section className="rounded-lg border border-zinc-200 p-4">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={checkboxChecked}
+                        onChange={(event) => void updateCheckboxTemplateItem(checkboxLabel, event.target.checked)}
+                        className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
+                      />
+                      <span>{checkboxLabel.trim() || "Checkbox"}</span>
+                    </label>
                   </section>
                 </div>
               ) : settingView === "textbox-editor" ? (
@@ -2240,6 +2365,93 @@ export default function DashboardExplorer({ initialState }: DashboardExplorerPro
               {selectedTemplateState.itemStates.map((item, itemIndex) => {
                 const isTopItem = itemIndex === 0;
                 const isBottomItem = itemIndex === selectedTemplateState.itemStates.length - 1;
+
+                if (item.type === "checkbox") {
+                  const checkboxItemLabel = item.config.label.trim() || item.name;
+                  const isEditingLabel = selectedTemplateEditingLabelItemId === item.id;
+
+                  return (
+                    <section key={item.id} className="rounded-lg border border-zinc-200 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm text-zinc-700">
+                          <input
+                            type="checkbox"
+                            checked={item.config.checked}
+                            onChange={(event) => void updateSelectedTemplateItemState(item.id, (currentItem) => {
+                              if (currentItem.type !== "checkbox") {
+                                return currentItem;
+                              }
+
+                              return {
+                                ...currentItem,
+                                config: {
+                                  ...currentItem.config,
+                                  checked: event.target.checked,
+                                },
+                              };
+                            })}
+                            className="h-4 w-4 rounded border-zinc-300 text-zinc-700"
+                          />
+                          {isEditingLabel ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              value={selectedTemplateEditingLabelValue}
+                              onChange={(event) => setSelectedTemplateEditingLabelValue(event.target.value)}
+                              onBlur={() => void commitSelectedTemplateLabelEdit()}
+                              onKeyDown={handleSelectedTemplateLabelKeyDown}
+                              className="min-w-36 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                              placeholder="Checkbox"
+                            />
+                          ) : (
+                            <span
+                              className="cursor-text"
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                startSelectedTemplateLabelEdit(item.id, item.config.label);
+                              }}
+                              title="Double click to edit label"
+                            >
+                              {checkboxItemLabel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            onClick={() => void moveSelectedTemplateItem(item.id, "up")}
+                            disabled={isTopItem}
+                            aria-label={`Move ${checkboxItemLabel} up`}
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            onClick={() => void moveSelectedTemplateItem(item.id, "down")}
+                            disabled={isBottomItem}
+                            aria-label={`Move ${checkboxItemLabel} down`}
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-300 text-sm leading-none text-zinc-600 transition hover:bg-zinc-100"
+                            onClick={() => confirmRemoveSelectedTemplateItem(item.id, checkboxItemLabel)}
+                            aria-label={`Remove ${checkboxItemLabel}`}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  );
+                }
 
                 if (item.type === "textbox") {
                   const textboxItemLabel = item.config.label.trim() || item.name;
